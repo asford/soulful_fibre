@@ -102,8 +102,8 @@ const CustomGeometryParticles = (props: { count: number }) => {
   useFrame((state, delta) => {
     const { clock } = state;
 
-    // @ts-expect-error
     const pos = Vec3Buffer.view(
+      // @ts-expect-error
       points.current.geometry.attributes.position.array,
     );
 
@@ -142,7 +142,7 @@ ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
     <Canvas camera={{ position: [25, 25, 60] }}>
       <ambientLight intensity={1} />
       <CustomGeometryParticles count={250_000} />
-      <OrbitControls autoRotate />
+      <OrbitControls autoRotate autoRotateSpeed={1.0} />
     </Canvas>
   </div>,
 );
