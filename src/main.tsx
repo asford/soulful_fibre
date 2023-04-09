@@ -128,6 +128,25 @@ class PartGuard {
   }
 }
 
+function monitor_ref(ref) {
+  return monitor(
+    () => {
+      return JSON.stringify(
+        ref.current,
+        (key, value) => {
+          if (typeof value == "number") {
+            return value.toPrecision(3);
+          } else {
+            return value;
+          }
+        },
+        2,
+      );
+    },
+    { graph: false },
+  );
+}
+
 const CustomGeometryParticles = (props: { count: number }) => {
   const { count } = props;
 
@@ -138,24 +157,8 @@ const CustomGeometryParticles = (props: { count: number }) => {
 
   const { step_size } = useControls({
     step_size: { value: 1e-1, min: 1e-3, max: 1, step: 1e-3 },
-    frac_valid: monitor(
-      () => {
-        return point_stats.current.valid / point_stats.current.count;
-      },
-      { graph: false },
-    ),
-    max_mag: monitor(
-      () => {
-        return point_stats.current.max_mag;
-      },
-      { graph: false },
-    ),
-    delta: monitor(
-      () => {
-        return run_delta.current;
-      },
-      { graph: false },
-    ),
+    delta: monitor_ref(run_delta),
+    point_stats: monitor_ref(point_stats),
   });
 
   // Generate our positions attributes array
