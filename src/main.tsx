@@ -255,7 +255,7 @@ function App(props: { diag?: boolean }) {
     <div style={{ width: "100vw", height: "100vh", background: "black" }}>
       <Canvas camera={{ position: [25, 25, 60] }}>
         <ambientLight intensity={1} />
-        <CustomGeometryParticles count={200e3} />
+        <CustomGeometryParticles count={500e3} />
         <OrbitControls autoRotate autoRotateSpeed={1.0} />
       </Canvas>
       {diag_element}
