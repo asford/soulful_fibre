@@ -146,3 +146,7 @@ ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
     </Canvas>
   </div>,
 );
+
+addEventListener("click", function() {
+  this.document.body.requestFullscreen();
+});
