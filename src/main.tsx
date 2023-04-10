@@ -1,10 +1,14 @@
-import React, { useMemo, useRef, useState } from "react";
+import React, { MutableRefObject, useMemo, useRef, useState } from "react";
 import { Canvas, useFrame, ThreeElements } from "@react-three/fiber";
 import ReactDOM from "react-dom/client";
 import * as THREE from "three";
 
-import { OrbitControls, OrthographicCamera } from "@react-three/drei";
-import { Stats } from "@react-three/drei";
+import {
+  Stats,
+  ArcballControls,
+  OrbitControls,
+  OrthographicCamera,
+} from "@react-three/drei";
 import { useControls, monitor, Leva } from "leva";
 
 import "./main.css";
@@ -33,18 +37,17 @@ class Vec3Buffer {
     return new Vec3Buffer(new Float32Array(3 * size));
   }
 
-  get(i: number): THREE.Vector3 {
+  get(i: number, into: THREE.Vector3): THREE.Vector3 {
     if (i < 0 || i >= this.size) {
       throw new Error("Invalid index");
     }
 
     const offset = i * 3;
 
-    return new THREE.Vector3(
-      this.data[offset + 0],
-      this.data[offset + 1],
-      this.data[offset + 2],
-    );
+    into.x = this.data[offset + 0];
+    into.y = this.data[offset + 1];
+    into.z = this.data[offset + 2];
+    return into;
   }
 
   set(i: number, vec: THREE.Vector3) {
@@ -62,15 +65,16 @@ class Vec3Buffer {
 
 // Chen-Lee Attractor
 // @ref https://observablehq.com/@rreusser/strange-attractors-on-the-gpu-part-2
-function chen_lee(p: THREE.Vector3): THREE.Vector3 {
+function chen_lee(p: THREE.Vector3, into: THREE.Vector3): THREE.Vector3 {
   const alpha = 5.0;
   const beta = -10.0;
   const gamma = -0.38;
-  return new THREE.Vector3(
-    alpha * p.x - p.y * p.z,
-    beta * p.y + p.x * p.z,
-    gamma * p.z + (p.x * p.y) / 3.0,
-  );
+
+  into.x = alpha * p.x - p.y * p.z;
+  into.y = beta * p.y + p.x * p.z;
+  into.z = gamma * p.z + (p.x * p.y) / 3.0;
+
+  return into;
 }
 
 interface VecIsh {
@@ -128,9 +132,13 @@ class PartGuard {
   }
 }
 
-function monitor_ref(ref) {
+function monitor_ref(ref: MutableRefObject<any>) {
   return monitor(
     () => {
+      if (typeof ref.current == "number") {
+        return ref.current;
+      }
+
       return JSON.stringify(
         ref.current,
         (key, value) => {
@@ -140,7 +148,7 @@ function monitor_ref(ref) {
             return value;
           }
         },
-        2,
+        "\n",
       );
     },
     { graph: false },
@@ -152,10 +160,12 @@ const CustomGeometryParticles = (props: { count: number }) => {
 
   // This reference gives us direct access to our points
   const points = useRef<THREE.Points>(null!);
+  const material = useRef<THREE.PointsMaterial>(null!);
   const point_stats = useRef<PartStats>(empty_stats());
   const run_delta = useRef<number>(0);
 
-  const { step_size } = useControls({
+  const { step_size, point_color } = useControls({
+    point_color: "#5786F5",
     step_size: { value: 1e-1, min: 1e-3, max: 1, step: 1e-3 },
     delta: monitor_ref(run_delta),
     point_stats: monitor_ref(point_stats),
@@ -165,13 +175,14 @@ const CustomGeometryParticles = (props: { count: number }) => {
   const particlesPosition = useMemo(() => {
     const pos = Vec3Buffer.empty(count);
     const distance = 1;
+    const point = new THREE.Vector3();
 
     for (let i = 0; i < count; i++) {
       const theta = THREE.MathUtils.randFloatSpread(2 * Math.PI);
       const phi = THREE.MathUtils.randFloatSpread(2 * Math.PI);
       pos.set(
         i,
-        new THREE.Vector3(
+        point.set(
           distance * Math.sin(theta) * Math.cos(phi),
           distance * Math.sin(theta) * Math.sin(phi),
           distance * Math.cos(theta),
@@ -190,17 +201,21 @@ const CustomGeometryParticles = (props: { count: number }) => {
       points.current.geometry.attributes.position.array,
     );
 
+    const candidate = new THREE.Vector3();
     const point_guard = new PartGuard(1e3, () => {
-      const candidate = pos.get(THREE.MathUtils.randInt(0, pos.size));
+      pos.get(THREE.MathUtils.randInt(0, pos.size), candidate);
       return candidate.addScaledVector(
         candidate,
         THREE.MathUtils.randFloatSpread(1e-2),
       );
     });
 
+    const point = new THREE.Vector3();
+    const dp_dt = new THREE.Vector3();
+
     for (let i = 0; i < count; i++) {
-      const point = pos.get(i);
-      const dp_dt = chen_lee(point);
+      pos.get(i, point);
+      chen_lee(point, dp_dt);
 
       pos.set(
         i,
@@ -214,7 +229,9 @@ const CustomGeometryParticles = (props: { count: number }) => {
   });
 
   return (
-    <points ref={points}>
+    // TODO: using ref=points here appears to cause errors with buffer attribute
+    // regeneration under different counts
+    <points ref={points} frustumCulled={false}>
       <bufferGeometry>
         <bufferAttribute
           attach="attributes-position"
@@ -225,7 +242,7 @@ const CustomGeometryParticles = (props: { count: number }) => {
       </bufferGeometry>
       <pointsMaterial
         size={1}
-        color="#5786F5"
+        color={point_color}
         sizeAttenuation={false}
         blending={THREE.AdditiveBlending}
       />
@@ -255,8 +272,8 @@ function App(props: { diag?: boolean }) {
     <div style={{ width: "100vw", height: "100vh", background: "black" }}>
       <Canvas camera={{ position: [25, 25, 60] }}>
         <ambientLight intensity={1} />
-        <CustomGeometryParticles count={500e3} />
-        <OrbitControls autoRotate autoRotateSpeed={1.0} />
+        <CustomGeometryParticles count={0.2e6} />
+        <ArcballControls />
       </Canvas>
       {diag_element}
     </div>
