@@ -2,6 +2,7 @@ import React, { MutableRefObject, useMemo, useRef, useState } from "react";
 import { Canvas, useFrame, ThreeElements } from "@react-three/fiber";
 import ReactDOM from "react-dom/client";
 import * as THREE from "three";
+import * as attractors from "./attractors"
 
 import {
   Stats,
@@ -63,19 +64,6 @@ class Vec3Buffer {
   }
 }
 
-// Chen-Lee Attractor
-// @ref https://observablehq.com/@rreusser/strange-attractors-on-the-gpu-part-2
-function chen_lee(p: THREE.Vector3, into: THREE.Vector3): THREE.Vector3 {
-  const alpha = 5.0;
-  const beta = -10.0;
-  const gamma = -0.38;
-
-  into.x = alpha * p.x - p.y * p.z;
-  into.y = beta * p.y + p.x * p.z;
-  into.z = gamma * p.z + (p.x * p.y) / 3.0;
-
-  return into;
-}
 
 interface VecIsh {
   x: number;
@@ -84,52 +72,65 @@ interface VecIsh {
 }
 interface PartStats {
   count: number;
-  valid: number;
+  resampled: number;
   max_mag: number;
 }
 function empty_stats(): PartStats {
-  return { count: 0, valid: 0, max_mag: 0 };
+  return { count: 0, resampled: 0, max_mag: 0 };
 }
 
 class PartGuard {
   static MAX_TRIES: number = 10;
-  stats: PartStats;
+  static SAMPLE_EPSILON: number = 1e-2;
+
+  resampled: number = 0;
+
+  mag_squared: number;
+  max_mag_squared: number;
+
+  resample_buf: THREE.Vector3;
   constructor(
     public mag_threshold: number,
-    public resample?: () => THREE.Vector3,
+    public sample_set: Vec3Buffer,
   ) {
-    this.stats = empty_stats();
+    this.mag_squared = mag_threshold ** 2;
+    this.max_mag_squared = 0;
+    this.resample_buf = new THREE.Vector3();
   }
 
-  check(vec: THREE.Vector3): boolean {
-    const mag = vec.length();
-
-    if (mag > this.stats.max_mag) {
-      this.stats.max_mag = mag;
-    }
-
-    return mag < this.mag_threshold;
-  }
   guard(vec: THREE.Vector3): THREE.Vector3 {
-    this.stats.count += 1;
+    const lsquared = vec.lengthSq();
 
-    if (this.check(vec)) {
-      this.stats.valid += 1;
+    // if (lsquared > this.max_mag_squared) {
+    //   this.max_mag_squared = lsquared;
+    // }
+
+    if (lsquared < this.mag_squared) {
       return vec;
     }
 
-    if (!this.resample) {
-      return vec;
-    }
+    this.resampled += 1;
 
     for (var tries = 0; tries < PartGuard.MAX_TRIES; tries += 1) {
-      const sample = this.resample();
-      if (this.check(sample)) {
-        return sample;
+      const sample = this.sample_set.get(THREE.MathUtils.randInt(0, this.sample_set.size - 1), this.resample_buf);
+
+      if (sample.lengthSq() < this.max_mag_squared)
+      {
+        return sample.addScaledVector(sample, THREE.MathUtils.randFloatSpread(PartGuard.SAMPLE_EPSILON));
       }
     }
+
     return vec;
   }
+
+  stats(): PartStats {
+    return {
+      count: this.sample_set.size,
+      resampled: this.resampled,
+      max_mag: Math.sqrt(this.max_mag_squared),
+    }
+
+  } 
 }
 
 function monitor_ref(ref: MutableRefObject<any>) {
@@ -202,20 +203,13 @@ const CustomGeometryParticles = (props: { count: number }) => {
     );
 
     const candidate = new THREE.Vector3();
-    const point_guard = new PartGuard(1e3, () => {
-      pos.get(THREE.MathUtils.randInt(0, pos.size), candidate);
-      return candidate.addScaledVector(
-        candidate,
-        THREE.MathUtils.randFloatSpread(1e-2),
-      );
-    });
-
+    const point_guard = new PartGuard(1e3, pos);
     const point = new THREE.Vector3();
     const dp_dt = new THREE.Vector3();
 
     for (let i = 0; i < count; i++) {
       pos.get(i, point);
-      chen_lee(point, dp_dt);
+      attractors.thomas(point, dp_dt);
 
       pos.set(
         i,
@@ -223,10 +217,10 @@ const CustomGeometryParticles = (props: { count: number }) => {
       );
     }
 
-    point_stats.current = point_guard.stats;
-
+    point_stats.current = point_guard.stats();
     points.current.geometry.attributes.position.needsUpdate = true;
   });
+
 
   return (
     // TODO: using ref=points here appears to cause errors with buffer attribute
@@ -280,7 +274,9 @@ function App(props: { diag?: boolean }) {
   );
 }
 
-ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
+var root = ReactDOM.createRoot(document.getElementById("root") as HTMLElement);
+
+root.render(
   <App diag={import.meta.env.DEV} />,
 );
 
