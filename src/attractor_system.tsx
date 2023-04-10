@@ -1,21 +1,10 @@
-import React, {
-  MutableRefObject,
-  PropsWithChildren,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
-import { Canvas, useFrame, ThreeElements } from "@react-three/fiber";
+import { MutableRefObject, PropsWithChildren, useMemo, useRef } from "react";
+import { Canvas, useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import * as attractors from "./attractors";
 
-import {
-  Stats,
-  ArcballControls,
-  OrbitControls,
-  OrthographicCamera,
-} from "@react-three/drei";
-import { useControls, monitor, Leva } from "leva";
+import { ArcballControls } from "@react-three/drei";
+import { useControls, monitor } from "leva";
 
 import { Diagnostics } from "./diagnostics";
 import { Vec3Buffer } from "./vecbuffer";
