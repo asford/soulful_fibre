@@ -281,7 +281,7 @@ function App(props: { diag?: boolean }) {
 }
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
-  <App diag={true} />,
+  <App diag={import.meta.env.DEV} />,
 );
 
 addEventListener("click", function () {
