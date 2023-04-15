@@ -1,17 +1,17 @@
 import { MutableRefObject, PropsWithChildren, useMemo, useRef } from "react";
 import { Canvas, RootState, useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
-import * as attractors from "./attractors";
+import * as attractors from "../attractors";
 
 import { ArcballControls } from "@react-three/drei";
 import { useControls, monitor } from "leva";
 
-import { Diagnostics } from "./diagnostics";
-import { Vec3Buffer } from "./vecbuffer";
+import { Diagnostics } from "../diagnostics";
+import { Vec3Buffer } from "../vecbuffer";
 import {
   GPUComputationRenderer,
   GPUComputationRendererVariable,
-} from "./GPUComputationRenderer";
+} from "../GPUComputationRenderer";
 
 import particles_frag from "./particles.frag";
 import particles_vert from "./particles.vert";
