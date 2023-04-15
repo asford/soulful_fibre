@@ -8,12 +8,15 @@ import { useControls, monitor } from "leva";
 
 import { Diagnostics } from "./diagnostics";
 import { Vec3Buffer } from "./vecbuffer";
-import { GPUComputationRenderer } from "./GPUComputationRenderer";
+import {
+  GPUComputationRenderer,
+  GPUComputationRendererVariable,
+} from "./GPUComputationRenderer";
 
 import particles_frag from "./particles.frag";
 import particles_vert from "./particles.vert";
 
-const ParticlesFBO = (props: { radius: number }) => {
+const ParticlesFBO = (props: {}) => {
   const gl = useThree((state) => state.gl);
   const width = 1024;
   const height = 1024;
@@ -112,8 +115,8 @@ const ParticlesFBO = (props: { radius: number }) => {
     );
 
     const uniforms = {
-      texture_position: { value: null },
-      texture_color: { value: null },
+      texture_position: { value: engine.positions.initialValueTexture },
+      texture_color: { value: engine.colors.initialValueTexture },
       point_size: { value: 1.0 },
     };
 
@@ -123,7 +126,9 @@ const ParticlesFBO = (props: { radius: number }) => {
     };
   }, [count]);
 
-  function read_variable(variable): Float32Array {
+  function read_variable(
+    variable: GPUComputationRendererVariable,
+  ): Float32Array {
     const var_target: THREE.WebGLRenderTarget =
       engine.compute.getCurrentRenderTarget(variable);
     const num_x = var_target.texture.source.data.width;
