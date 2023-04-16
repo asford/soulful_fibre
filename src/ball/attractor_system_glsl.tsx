@@ -1,7 +1,7 @@
 import { MutableRefObject, PropsWithChildren, useMemo, useRef } from "react";
 import { Canvas, RootState, useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
-import * as attractors from "../attractors";
+import * as attractors from "../cpu_thompson/attractors";
 
 import { ArcballControls } from "@react-three/drei";
 import { useControls, monitor } from "leva";

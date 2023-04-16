@@ -6,8 +6,8 @@ import * as attractors from "./attractors";
 import { ArcballControls } from "@react-three/drei";
 import { useControls, monitor } from "leva";
 
-import { Diagnostics } from "./diagnostics";
-import { Vec3Buffer } from "./vecbuffer";
+import { Diagnostics } from "../diagnostics";
+import { Vec3Buffer } from "../vecbuffer";
 
 interface VecIsh {
   x: number;
