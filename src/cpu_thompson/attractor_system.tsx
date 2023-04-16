@@ -197,7 +197,7 @@ export function AttractorSystem(props: {}) {
       <Canvas camera={{ position: [25, 25, 60] }}>
         <ambientLight intensity={1} />
         <CustomGeometryParticles
-          count={1024 * 1024}
+          count={256 * 1024}
           attractor_fn={attractors.thomas}
         >
           <pointsMaterial
