@@ -12,7 +12,11 @@ import {
 import * as d3 from "d3";
 import p5, { Vector } from "p5";
 import _ from "underscore";
-import { HolisticCapture, CapResult } from "./holistic_capture";
+import {
+  default_video_constraints,
+  HolisticCapture,
+  CapResult,
+} from "./holistic_capture";
 import { VecScale, v, VecIsh } from "./vector";
 import {
   chakra_colors,
@@ -61,7 +65,7 @@ function setup() {
   p.frameRate(FPS);
   windowResized();
 
-  const capture = p.createCapture("VIDEO");
+  const capture = p.createCapture(default_video_constraints());
   capture.hide();
   hcap = new HolisticCapture(capture.elt);
 }

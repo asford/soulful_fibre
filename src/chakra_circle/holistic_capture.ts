@@ -9,7 +9,24 @@ import {
   POSE_LANDMARKS,
 } from "@mediapipe/holistic";
 
-import { Camera } from "@mediapipe/camera_utils";
+import * as _ from "underscore";
+
+const media_devices = await navigator.mediaDevices.enumerateDevices();
+
+// Get the first camera, should sensibly default to usb webcam.
+export function default_video_constraints() {
+  const first_device = _.first(
+    _.filter(media_devices, (device) => {
+      return device.kind == "videoinput";
+    }),
+  );
+  return {
+    video: {
+      deviceId: first_device?.deviceId,
+    },
+    audio: false,
+  };
+}
 
 export interface CapResult {
   time: number;
@@ -31,7 +48,6 @@ export const DEFAULT_OPTIONS: Options = {
 };
 
 export class HolisticCapture {
-  camera: Camera;
   holistic: Holistic;
   current: CapResult;
 
@@ -67,14 +83,11 @@ export class HolisticCapture {
     });
     this.holistic.setOptions(options);
 
-    this.camera = new Camera(video_element, {
-      onFrame: async () => {
-        await this.holistic.send({ image: video_element });
-      },
-      width: 1280,
-      height: 720,
-    });
+    const video_callback = async (now, metadata) => {
+      await this.holistic.send({ image: video_element });
+      video_element.requestVideoFrameCallback(video_callback);
+    };
 
-    this.camera.start();
+    video_element.requestVideoFrameCallback(video_callback);
   }
 }
