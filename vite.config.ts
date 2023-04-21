@@ -15,7 +15,11 @@ export default defineConfig({
   base: "/soulful_fibre",
   build: {
     minify: false,
-    rollupOptions: { plugins: [mediapipe_workaround()] },
+    rollupOptions: {
+      plugins: [mediapipe_workaround()],
+      treeshake: false,
+    },
+    target: "esnext",
   },
 });
 

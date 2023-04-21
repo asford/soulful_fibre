@@ -83,7 +83,7 @@ export class HolisticCapture {
     });
     this.holistic.setOptions(options);
 
-    const video_callback = async (now, metadata) => {
+    const video_callback = async () => {
       await this.holistic.send({ image: video_element });
       video_element.requestVideoFrameCallback(video_callback);
     };
