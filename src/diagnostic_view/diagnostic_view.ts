@@ -16,8 +16,11 @@ import {
   default_video_constraints,
   HolisticCapture,
   CapResult,
-} from "../chakra_circle/holistic_capture";
-import { VecScale, v, VecIsh } from "../chakra_circle/vector";
+} from "./holistic_capture";
+import { VecScale, v, VecIsh } from "./vector";
+
+import { chakra_colors, ChakraCoords, chakra_meta } from "./chakra_common";
+import { not } from "taichi.js/dist/taichi";
 
 const media_devices = await navigator.mediaDevices.enumerateDevices();
 
@@ -138,7 +141,6 @@ function setup() {
   const capture = p.createCapture(default_video_constraints());
   capture.hide();
 
-  console.log(capture.elt);
   hcap = new HolisticCapture(capture.elt);
 }
 
@@ -193,8 +195,8 @@ function draw_skeleton(
 ) {
   const l_to_f = draw_frame.bind();
 
-  if (cap.result?.poseLandmarks) {
-    const pose_coords = _.map(cap.result?.poseLandmarks, l_to_f);
+  if (cap.coords?.pose_coords) {
+    const pose_coords = _.map(cap.coords.pose_coords, l_to_f);
 
     _.map(POSE_LANDMARKS_LEFT, (idx, name) => {
       const loc = pose_coords[idx];
@@ -212,8 +214,8 @@ function draw_skeleton(
     draw_connections(p, pose_coords, POSE_CONNECTIONS);
   }
 
-  if (cap.result?.faceLandmarks) {
-    const face_coords = _.map(cap.result?.faceLandmarks, l_to_f);
+  if (cap.coords?.face_coords) {
+    const face_coords = _.map(cap.coords.face_coords, l_to_f);
 
     const face_color = p.color(colors.body);
     face_color.setAlpha(25);
@@ -226,35 +228,6 @@ function draw_skeleton(
   }
 }
 
-// function draw_hands(
-//   p: p5,
-//   colors: PoseColors,
-//   cap: CapResult,
-//   draw_frame: VecScale,
-// ) {
-//   if (cap.result?.rightHandLandmarks) {
-//     const right_hand_coords = _.map(cap.result?.rightHandLandmarks, l_to_f);
-
-//     p.stroke(colors.right).strokeWeight(2);
-//     draw_connections(p, right_hand_coords, HAND_CONNECTIONS);
-
-//     _.map(right_hand_coords, (landmark) => {
-//       feature_dot(p, colors.right, landmark, 8, 1);
-//     });
-//   }
-
-//   if (cap.result?.leftHandLandmarks) {
-//     const left_hand_coords = _.map(cap.result?.leftHandLandmarks, l_to_f);
-
-//     p.stroke(colors.left).strokeWeight(2);
-//     draw_connections(p, left_hand_coords, HAND_CONNECTIONS);
-
-//     _.map(left_hand_coords, (landmark) => {
-//       feature_dot(p, colors.left, landmark, 8, 1);
-//     });
-//   }
-// }
-
 // https://github.com/d3/d3-scale-chromatic#schemeSet2
 const colors = {
   body: d3.schemeSet2[0],
@@ -263,11 +236,11 @@ const colors = {
   grey: d3.schemeSet2[7],
 };
 
-function draw_view_frame(p: p5, draw_frame: VecScale) {
+function draw_view_frame(p: p5, cap_aspect: number, draw_frame: VecScale) {
   const l_to_f = draw_frame.bind();
 
-  const lower = l_to_f(v(0, 0));
-  const upper = l_to_f(v(1, 1));
+  const lower = l_to_f(v(-1, -cap_aspect));
+  const upper = l_to_f(v(1, cap_aspect));
 
   p.fill(25)
     .stroke(colors.grey)
@@ -276,114 +249,28 @@ function draw_view_frame(p: p5, draw_frame: VecScale) {
     .rect(lower.x, lower.y, upper.x, upper.y);
 }
 
+function draw_capture_image(p: p5, cap: CapResult, draw_frame: VecScale) {
+  const l_to_f = draw_frame.bind();
+
+  const cap_aspect = cap.height / cap.width;
+
+  const tl = l_to_f(v(-1, 1));
+  const lr = l_to_f(v(1, -1));
+
+  if (!cap.result?.image) {
+    return;
+  }
+
+  // Broken, can't draw imagebitmap directly to p5 canvas
+  p.image(cap.result?.image, tl.x, tl.y, lr.x - tl.x, lr.y - tl.y);
+}
+
 function draw_cap_count(p: p5, cap: CapResult) {
   p.fill(200)
     .textSize(16)
     .stroke(colors.body)
     .strokeWeight(1)
     .text("f: " + cap.count, 16, 32);
-}
-
-function avg_vec(vecs: VecIsh[]) {
-  var accum = v(0, 0);
-  _.each(vecs, (vec) => {
-    if (!vec) {
-      return;
-    }
-    accum.add(vec.x, vec.y, vec.z);
-  });
-  return accum.div(_.size(vecs));
-}
-
-interface PoseCoords {
-  NOSE: Vector;
-  RIGHT_EYE_INNER: Vector;
-  RIGHT_EYE: Vector;
-  RIGHT_EYE_OUTER: Vector;
-  LEFT_EYE_INNER: Vector;
-  LEFT_EYE: Vector;
-  LEFT_EYE_OUTER: Vector;
-  RIGHT_EAR: Vector;
-  LEFT_EAR: Vector;
-  MOUTH_RIGHT: Vector;
-  MOUTH_LEFT: Vector;
-  RIGHT_SHOULDER: Vector;
-  LEFT_SHOULDER: Vector;
-  RIGHT_ELBOW: Vector;
-  LEFT_ELBOW: Vector;
-  RIGHT_WRIST: Vector;
-  LEFT_WRIST: Vector;
-  RIGHT_PINKY: Vector;
-  LEFT_PINKY: Vector;
-  RIGHT_INDEX: Vector;
-  LEFT_INDEX: Vector;
-  RIGHT_THUMB: Vector;
-  LEFT_THUMB: Vector;
-  RIGHT_HIP: Vector;
-  LEFT_HIP: Vector;
-}
-
-const chakra_colors = {
-  CHAKRA_CROWN: "#704089",
-  CHAKRA_EYE: "#355B9C",
-  CHAKRA_THROAT: "#3C9CC9",
-  CHAKRA_HEART: "#29A147",
-  CHAKRA_SOLAR: "#DCB512",
-  CHAKRA_SACRAL: "#DF6323",
-  CHAKRA_ROOT: "#BE1D23",
-};
-
-interface ChakraCoords {
-  CHAKRA_CROWN: Vector;
-  CHAKRA_EYE: Vector;
-  CHAKRA_THROAT: Vector;
-  CHAKRA_HEART: Vector;
-  CHAKRA_SOLAR: Vector;
-  CHAKRA_SACRAL: Vector;
-  CHAKRA_ROOT: Vector;
-}
-
-function chakra_meta(pose: PoseCoords) {
-  const EYE_CENTER = avg_vec([pose.LEFT_EYE, pose.RIGHT_EAR]);
-  const MOUTH_CENTER = avg_vec([pose.MOUTH_LEFT, pose.MOUTH_RIGHT]);
-  const SHOULDER_CENTER = avg_vec([pose.LEFT_SHOULDER, pose.RIGHT_SHOULDER]);
-  const HIP_CENTER = avg_vec([pose.LEFT_HIP, pose.RIGHT_HIP]);
-
-  const S_TO_E = EYE_CENTER.copy().sub(SHOULDER_CENTER);
-  const H_TO_S = SHOULDER_CENTER.copy().sub(HIP_CENTER);
-
-  const chakra_coords = {
-    CHAKRA_CROWN: EYE_CENTER.copy().add(S_TO_E.copy().mult(3 / 4)),
-    CHAKRA_EYE: EYE_CENTER.copy(),
-    CHAKRA_THROAT: SHOULDER_CENTER.copy().add(S_TO_E.copy().div(4)),
-    CHAKRA_HEART: SHOULDER_CENTER.copy().sub(H_TO_S.copy().div(4)),
-    CHAKRA_SOLAR: SHOULDER_CENTER.copy().sub(H_TO_S.copy().div(2)),
-    CHAKRA_SACRAL: HIP_CENTER.copy().add(H_TO_S.copy().div(4)),
-    CHAKRA_ROOT: HIP_CENTER.copy(),
-  };
-
-  var meta_coords = {
-    EYE_CENTER: EYE_CENTER,
-    MOUTH_CENTER: MOUTH_CENTER,
-    SHOULDER_CENTER: SHOULDER_CENTER,
-    HIP_CENTER: HIP_CENTER,
-    S_TO_E: S_TO_E,
-    H_TO_S: H_TO_S,
-  };
-
-  var act = coord_activation(pose.LEFT_INDEX, chakra_coords);
-  // @ts-expect-error
-  var color: string = chakra_colors[act.key];
-
-  return {
-    meta: meta_coords,
-    coords: chakra_coords,
-    colors: chakra_colors,
-    close: {
-      ...act,
-      color: color,
-    },
-  };
 }
 
 function draw_chakra_activation(p: p5, coords: ChakraCoords) {
@@ -477,19 +364,21 @@ var center: Vector;
 var canvas_scale: number;
 var canvas_cover: number = 0.9;
 
-var feature_domain: Vector[];
-var render_range: Vector[];
-
 var draw_frame: VecScale;
 
 var draw_buffer: p5.Graphics;
 
 function windowResized() {
   p.resizeCanvas(p.windowWidth, p.windowHeight);
-
   screen_size = v(p.width, p.height);
-  center = screen_size.copy().div(2);
+  draw_buffer = p.createGraphics(screen_size.x, screen_size.y);
+  draw_buffer.clear(0, 0, 0, 0);
+}
 
+var position: Vector;
+var last_position: Vector;
+
+function draw() {
   if (!hcap) {
     return;
   }
@@ -503,42 +392,28 @@ function windowResized() {
   var cap_size = v(cap.width, cap.height);
   var cap_aspect = cap_size.y / cap_size.x;
 
-  var canvas_scale = Math.min(screen_size.x / 1, screen_size.y / cap_aspect);
+  var pose_coord_scale = _.min([
+    (canvas_cover * screen_size.x) / (2 * 1),
+    (canvas_cover * screen_size.y) / (2 * cap_aspect),
+  ]);
 
   // normalize landmark into a selfy-ish, equally scaled x-y coordinate
-  feature_domain = [v(1, 0), v(0, 1)];
-  render_range = [
-    center
-      .copy()
-      .add(v(1, cap_aspect).mult(-((canvas_scale * canvas_cover) / 2))),
-    center.copy().add(v(1, cap_aspect).mult((canvas_scale * canvas_cover) / 2)),
+  const window_range = [
+    v(-pose_coord_scale, -pose_coord_scale)
+      .mult(-1, 1)
+      .add(screen_size.x / 2, screen_size.y / 2),
+    v(pose_coord_scale, pose_coord_scale)
+      .mult(-1, 1)
+      .add(screen_size.x / 2, screen_size.y / 2),
   ];
 
-  draw_frame = VecScale.linear().domain(feature_domain).range(render_range);
-
-  draw_buffer = p.createGraphics(screen_size.x, screen_size.y);
-  draw_buffer.clear(0, 0, 0, 0);
-}
-
-var position: Vector;
-var last_position: Vector;
-
-function draw() {
-  // Terrible hack, do multiple window resizes to get drawing frame setup.
-  if (!hcap) {
-    return;
-  }
-  if (!draw_frame) {
-    windowResized();
-  }
-  if (!draw_frame) {
-    return;
-  }
-
-  const cap = hcap?.current;
+  draw_frame = VecScale.linear()
+    .domain([v(-1, -1), v(1, 1)])
+    .range(window_range);
 
   p.background(0);
-  draw_view_frame(p, draw_frame);
+
+  draw_view_frame(p, cap_aspect, draw_frame);
 
   if (!cap.result?.poseLandmarks) {
     draw_buffer.clear(0, 0, 0, 0);
@@ -547,28 +422,37 @@ function draw() {
 
   draw_skeleton(p, colors, cap, draw_frame);
 
-  if (!cap.result?.poseLandmarks) {
+  if (!cap.coords?.pose_coords) {
     p.fill(0);
     return;
   }
 
   const l_to_f = draw_frame.bind();
+
+  // Maybe fold into pose
   const pose = _.mapObject(POSE_LANDMARKS, (idx, name) => {
-    const landmark = cap.result?.poseLandmarks[idx];
+    const landmark = (cap.coords?.pose_coords ?? [])[idx];
     if (!landmark) {
       return v(NaN, NaN);
     }
-    return l_to_f(landmark);
+    return v(landmark.x, landmark.y);
   });
 
   const chaks = chakra_meta(pose);
 
+  draw_chakra_activation(
+    p,
+    _.mapObject(chaks.coords, (coord, name) => {
+      return l_to_f(coord);
+    }),
+  );
+
   // feature_dot(p, color_alpha(colors.grey, .25), pose.RIGHT_INDEX, 4, 1);
 
-  last_position = position;
-  position = pose.RIGHT_INDEX;
+  // last_position = position;
+  // position = pose.RIGHT_INDEX;
 
-  var SYMMETRY = 8;
+  // var SYMMETRY = 8;
 
   //   if (chaks.close.activated) {
   //     draw_buffer
