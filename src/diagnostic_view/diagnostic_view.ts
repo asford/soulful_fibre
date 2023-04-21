@@ -1,13 +1,13 @@
 import {
-  HAND_CONNECTIONS,
   NormalizedLandmark,
   NormalizedLandmarkListList,
+  FACEMESH_TESSELATION,
+  HAND_CONNECTIONS,
   POSE_CONNECTIONS,
   POSE_LANDMARKS,
   POSE_LANDMARKS_LEFT,
   POSE_LANDMARKS_RIGHT,
   POSE_LANDMARKS_NEUTRAL,
-  FACEMESH_TESSELATION,
 } from "@mediapipe/holistic";
 import * as d3 from "d3";
 import p5, { Vector } from "p5";
@@ -249,21 +249,21 @@ function draw_view_frame(p: p5, cap_aspect: number, draw_frame: VecScale) {
     .rect(lower.x, lower.y, upper.x, upper.y);
 }
 
-function draw_capture_image(p: p5, cap: CapResult, draw_frame: VecScale) {
-  const l_to_f = draw_frame.bind();
+// function draw_capture_image(p: p5, cap: CapResult, draw_frame: VecScale) {
+//   const l_to_f = draw_frame.bind();
 
-  const cap_aspect = cap.height / cap.width;
+//   const cap_aspect = cap.height / cap.width;
 
-  const tl = l_to_f(v(-1, 1));
-  const lr = l_to_f(v(1, -1));
+//   const tl = l_to_f(v(-1, 1));
+//   const lr = l_to_f(v(1, -1));
 
-  if (!cap.result?.image) {
-    return;
-  }
+//   if (!cap.result?.image) {
+//     return;
+//   }
 
-  // Broken, can't draw imagebitmap directly to p5 canvas
-  p.image(cap.result?.image, tl.x, tl.y, lr.x - tl.x, lr.y - tl.y);
-}
+//   // Broken, can't draw imagebitmap directly to p5 canvas
+//   p.image(cap.result?.image, tl.x, tl.y, lr.x - tl.x, lr.y - tl.y);
+// }
 
 function draw_cap_count(p: p5, cap: CapResult) {
   p.fill(200)

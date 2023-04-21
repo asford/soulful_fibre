@@ -33,8 +33,10 @@ const mediapipe_patches = {
     "HAND_CONNECTIONS",
     "POSE_CONNECTIONS",
     "POSE_LANDMARKS",
+    "POSE_LANDMARKS_LEFT",
+    "POSE_LANDMARKS_RIGHT",
+    "POSE_LANDMARKS_NEUTRAL",
   ],
-  "camera_utils.js": ["Camera"],
 };
 function mediapipe_workaround() {
   return {
