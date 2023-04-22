@@ -13,15 +13,88 @@ interface ArrayLike<T> {
   [n: number]: T;
 }
 
-export class Vec3Buffer {
+export class Vec4Buffer {
+  itemsize: number = 4;
   size: number;
+  data: ArrayLike<number>;
 
-  constructor(public data: ArrayLike<number>) {
-    if (data.length % 3 != 0) {
+  constructor(data?: ArrayLike<number>) {
+    if (!data) {
+      data = new Float32Array(0);
+    }
+
+    if (data.length % this.itemsize != 0) {
       throw new Error("Invalid data length");
     }
 
-    this.size = data.length / 3;
+    this.data = data;
+    this.size = data.length / this.itemsize;
+  }
+
+  set_data(data: ArrayLike<number>) {
+    if (data.length % this.itemsize != 0) {
+      throw new Error("Invalid data length");
+    }
+
+    this.data = data;
+    this.size = data.length / this.itemsize;
+  }
+
+  static view(data: ArrayLike<number>): Vec4Buffer {
+    return new Vec4Buffer(data);
+  }
+
+  static empty(size: number): Vec4Buffer {
+    const result = new Vec4Buffer();
+    result.set_data(new Float32Array(result.itemsize * size));
+    return result;
+  }
+
+  get(i: number, into: THREE.Vector4): THREE.Vector4 {
+    if (i < 0 || i >= this.size) {
+      throw new Error("Invalid index");
+    }
+
+    const offset = i * this.itemsize;
+
+    return into.fromArray(this.data, offset);
+  }
+
+  set(i: number, vec: THREE.Vector4) {
+    if (i < 0 || i >= this.size) {
+      throw new Error("Invalid index");
+    }
+
+    const offset = i * this.itemsize;
+    vec.toArray(this.data, offset);
+  }
+}
+
+export class Vec3Buffer {
+  itemsize: number = 3;
+  size: number;
+  data: ArrayLike<number>;
+
+  constructor(data?: ArrayLike<number>) {
+    if (!data) {
+      data = new Float32Array(0);
+    }
+
+    if (data.length % this.itemsize != 0) {
+      throw new Error("Invalid data length");
+    }
+
+    this.data = data;
+    this.size = data.length / this.itemsize;
+  }
+
+  set_data(data: ArrayLike<number>) {
+    if (data.length % this.itemsize != 0) {
+      throw new Error("Invalid data length");
+    }
+
+    this.data = data;
+    this.size = data.length / this.itemsize;
   }
 
   static view(data: ArrayLike<number>): Vec3Buffer {
@@ -29,7 +102,9 @@ export class Vec3Buffer {
   }
 
   static empty(size: number): Vec3Buffer {
-    return new Vec3Buffer(new Float32Array(3 * size));
+    const result = new Vec3Buffer();
+    result.set_data(new Float32Array(result.itemsize * size));
+    return result;
   }
 
   get(i: number, into: THREE.Vector3): THREE.Vector3 {
@@ -37,12 +112,9 @@ export class Vec3Buffer {
       throw new Error("Invalid index");
     }
 
-    const offset = i * 3;
+    const offset = i * this.itemsize;
 
-    into.x = this.data[offset + 0];
-    into.y = this.data[offset + 1];
-    into.z = this.data[offset + 2];
-    return into;
+    return into.fromArray(this.data, offset);
   }
 
   set(i: number, vec: THREE.Vector3) {
@@ -50,11 +122,65 @@ export class Vec3Buffer {
       throw new Error("Invalid index");
     }
 
-    const offset = i * 3;
+    const offset = i * this.itemsize;
+    vec.toArray(this.data, offset);
+  }
+}
 
-    this.data[offset + 0] = vec.x;
-    this.data[offset + 1] = vec.y;
-    this.data[offset + 2] = vec.z;
+export class Vec2Buffer {
+  itemsize: number = 2;
+  size: number;
+  data: ArrayLike<number>;
+
+  constructor(data?: ArrayLike<number>) {
+    if (!data) {
+      data = new Float32Array(0);
+    }
+
+    if (data.length % this.itemsize != 0) {
+      throw new Error("Invalid data length");
+    }
+
+    this.data = data;
+    this.size = data.length / this.itemsize;
+  }
+
+  set_data(data: ArrayLike<number>) {
+    if (data.length % this.itemsize != 0) {
+      throw new Error("Invalid data length");
+    }
+
+    this.data = data;
+    this.size = data.length / this.itemsize;
+  }
+
+  static view(data: ArrayLike<number>): Vec2Buffer {
+    return new Vec2Buffer(data);
+  }
+
+  static empty(size: number): Vec2Buffer {
+    const result = new Vec2Buffer();
+    result.set_data(new Float32Array(result.itemsize * size));
+    return result;
+  }
+
+  get(i: number, into: THREE.Vector2): THREE.Vector2 {
+    if (i < 0 || i >= this.size) {
+      throw new Error("Invalid index");
+    }
+
+    const offset = i * this.itemsize;
+
+    return into.fromArray(this.data, offset);
+  }
+
+  set(i: number, vec: THREE.Vector2) {
+    if (i < 0 || i >= this.size) {
+      throw new Error("Invalid index");
+    }
+
+    const offset = i * this.itemsize;
+    vec.toArray(this.data, offset);
   }
 }
 

@@ -7,7 +7,6 @@ import { ArcballControls } from "@react-three/drei";
 import { useControls, monitor } from "leva";
 
 import { Diagnostics } from "../diagnostics";
-import { Vec3Buffer } from "../vecbuffer";
 import {
   GPUComputationRenderer,
   GPUComputationRendererVariable,
@@ -16,43 +15,71 @@ import {
 import particles_frag from "./particles.frag";
 import particles_vert from "./particles.vert";
 
-const ParticlesFBO = (props: {}) => {
+import { Vec4Buffer, Vec3Buffer, Vec2Buffer } from "../vecbuffer";
+
+const ParticlesFBO = (props: { count: number }) => {
   const gl = useThree((state) => state.gl);
+  const { count } = props;
   const width = 1024;
-  const height = 1024;
-  const count = width * height;
+  const height = count / width;
+
+  if (count % width != 0) {
+    throw new Error("Count must be even multiple of 1024 for compute pass.");
+  }
 
   const engine = useMemo(() => {
     const compute = new GPUComputationRenderer(width, height, gl);
-    const buf = new THREE.Vector4();
 
-    const initial_position = compute.createTexture();
-    const initial_color = compute.createTexture();
+    const initial_position = Vec4Buffer.empty(count);
+    const initial_velocity = Vec4Buffer.empty(count);
+    const initial_color = Vec4Buffer.empty(count);
 
     const point = new THREE.Vector3();
     const color = new THREE.Color();
+    const vec4 = new THREE.Vector4();
+
     for (let i = 0; i < count; i++) {
       point.randomDirection();
+      initial_position.set(i, vec4.set(point.x, point.y, point.z, 1.0));
+
       color.setHSL(Math.abs(point.x), 1.0, 0.5);
-
-      buf.set(point.x, point.y, point.z, 1.0);
-      buf.toArray(initial_position.image.data, i * 4);
-
-      buf.set(color.r, color.g, color.b, 1.0);
-      buf.toArray(initial_color.image.data, i * 4);
+      initial_color.set(i, vec4.set(color.r, color.g, color.b, 1.0));
     }
 
     // just passthrough on render
+    const velocities = compute.addVariable(
+      "velocities",
+      `
+        void main() {
+            vec2 uv = gl_FragCoord.xy / resolution.xy;
+
+            vec4 origin = vec4(0, 0, 0, 0);
+            vec4 position = texture2D(positions, uv);
+            vec4 velocity = texture2D(velocities, uv);
+            vec4 displacement = origin - position;
+
+            gl_FragColor = velocity + displacement * .001;
+        }
+      `,
+      compute.createTexture(initial_velocity.data as Float32Array),
+    );
+
     const positions = compute.addVariable(
       "positions",
       `
         void main() {
             vec2 uv = gl_FragCoord.xy / resolution.xy;
-            gl_FragColor = texture2D(positions, uv);
+            vec4 position = texture2D(positions, uv);
+            vec4 velocity = texture2D(velocities, uv);
+
+            gl_FragColor = position + velocity * .001;
         }
       `,
-      initial_position,
+      compute.createTexture(initial_position.data as Float32Array),
     );
+
+    compute.setVariableDependencies(velocities, [positions, velocities]);
+    compute.setVariableDependencies(positions, [positions, velocities]);
 
     const colors = compute.addVariable(
       "colors",
@@ -62,10 +89,8 @@ const ParticlesFBO = (props: {}) => {
             gl_FragColor = texture2D(colors, uv);
         }
       `,
-      initial_color,
+      compute.createTexture(initial_color.data as Float32Array),
     );
-
-    compute.setVariableDependencies(positions, [positions]);
     compute.setVariableDependencies(colors, [colors]);
 
     var error = compute.init();
@@ -83,17 +108,18 @@ const ParticlesFBO = (props: {}) => {
   // https://github.com/mrdoob/three.js/blob/dev/examples/webgl_gpgpu_protoplanet.html
   const particle = useMemo(() => {
     // Positions are empty, we'll read from texture
-    var positions = new Float32Array(count * 3);
+    const positions = Vec3Buffer.empty(count);
 
     // UVs are index into texture buffers
-    var uvs = new Float32Array(count * 2);
+    const uvs = Vec2Buffer.empty(count);
+    const uv = new THREE.Vector2();
     const num_x = width;
     const num_y = height;
-    var p = 0;
+    var i = 0;
     for (var x = 0; x < num_x; x++) {
       for (var y = 0; y < num_y; y++) {
-        uvs[p++] = x / (num_x - 1);
-        uvs[p++] = y / (num_y - 1);
+        uvs.set(i, uv.set(x / (num_x - 1), y / (num_y - 1)));
+        i++;
       }
     }
 
@@ -101,15 +127,15 @@ const ParticlesFBO = (props: {}) => {
       <bufferGeometry>
         <bufferAttribute
           attach="attributes-position"
-          count={count}
-          array={positions}
-          itemSize={3}
+          count={positions.size}
+          array={positions.data}
+          itemSize={positions.itemsize}
         />
         <bufferAttribute
           attach="attributes-uv"
-          count={count}
-          array={uvs}
-          itemSize={2}
+          count={uvs.size}
+          array={uvs.data}
+          itemSize={uvs.itemsize}
         />
       </bufferGeometry>
     );
@@ -157,7 +183,7 @@ const ParticlesFBO = (props: {}) => {
     <points ref={points} frustumCulled={false}>
       {particle.geometry}
       <shaderMaterial
-        blending={THREE.AdditiveBlending}
+        // blending={THREE.AdditiveBlending}
         depthWrite={false}
         fragmentShader={particles_frag}
         vertexShader={particles_vert}
@@ -172,7 +198,7 @@ export function AttractorSystemGLSL(props: {}) {
     <div style={{ width: "100vw", height: "100vh", background: "black" }}>
       <Canvas camera={{ position: [0.5, 0.5, 0.5] }}>
         <ambientLight intensity={1} />
-        <ParticlesFBO />
+        <ParticlesFBO count={1024 * 1024} />
         <ArcballControls />
       </Canvas>
       <Diagnostics />

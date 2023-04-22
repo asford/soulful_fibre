@@ -411,8 +411,15 @@ class GPUComputationRenderer {
     return renderTarget;
   }
 
-  createTexture() {
-    const data = new Float32Array(this.sizeX * this.sizeY * 4);
+  createTexture(data?: Float32Array) {
+    if (!data) {
+      data = new Float32Array(this.sizeX * this.sizeY * 4);
+    }
+
+    if (data.length != this.sizeX * this.sizeY * 4) {
+      throw new Error("Invalid initial data size.");
+    }
+
     const texture = new DataTexture(
       data,
       this.sizeX,
