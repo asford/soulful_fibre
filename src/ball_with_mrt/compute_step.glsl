@@ -16,8 +16,6 @@ uniform float force;
 void main() {
     vec2 uv = gl_FragCoord.xy / resolution.xy;
 
-    float delta = .001;
-
     vec4 loc = texture(back_loc, uv);
     vec4 vel = texture(back_vel, uv);
     vec4 color = texture(back_color, uv);

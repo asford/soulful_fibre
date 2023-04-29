@@ -29,9 +29,9 @@ const ParticlesFBO = (props: { count: number }) => {
     );
   }
 
-  const { m_force, step_size } = useControls({
-    m_force: { value: 1000, min: 0, max: 25e3 },
-    step_size: { value: 1, min: 0, max: 100 },
+  const { m_force, m_step_size } = useControls({
+    m_force: { value: 1000, min: 0, max: 10e3 },
+    m_step_size: { value: 1000, min: 0, max: 10e3 },
   });
 
   const engine = useMemo(() => {
@@ -46,7 +46,12 @@ const ParticlesFBO = (props: { count: number }) => {
 
     for (let i = 0; i < count; i++) {
       point.randomDirection();
-      init_loc.set(i, vec4.set(point.x, point.y, point.z, 1.0));
+      init_loc.set(
+        i,
+        vec4
+          .set(point.x, point.y, point.z, 1.0)
+          .multiplyScalar(THREE.MathUtils.randFloat(0.01, 1)),
+      );
 
       color.setHSL(Math.abs(point.x), 1.0, 0.5);
       init_color.set(i, vec4.set(color.r, color.g, color.b, 1.0));
@@ -126,7 +131,8 @@ const ParticlesFBO = (props: { count: number }) => {
   const points = useRef<THREE.Points>(null!);
 
   useFrame((state, delta) => {
-    engine.render_cycle.compute_uniforms.delta.value = delta * step_size;
+    engine.render_cycle.compute_uniforms.delta.value =
+      (delta * m_step_size) / 1000;
     engine.render_cycle.compute_uniforms.force.value = m_force / 1000;
 
     engine.render_cycle.render();
@@ -154,7 +160,7 @@ const ParticlesFBO = (props: { count: number }) => {
 };
 
 export function AttractorSystemGLSL(props: {}) {
-  const k_points = 256;
+  const k_points = 1024 * 2;
 
   return (
     <div style={{ width: "100vw", height: "100vh", background: "black" }}>
