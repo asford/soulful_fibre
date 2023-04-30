@@ -24,6 +24,7 @@ import {
   Vector2,
   IUniform,
   GLSL3,
+  ShaderMaterial,
 } from "three";
 import _ from "underscore";
 
@@ -145,10 +146,13 @@ class MRTRenderCycle<InitUT, ComputeUT> {
       ...this.back_texture_uniforms(),
     });
 
+    this.init();
+  }
+
+  init() {
     this.renderer.doRenderTarget(this.init_material, this.back);
     this.renderer.doRenderTarget(this.init_material, this.front);
   }
-
   swap() {
     const prev_back = this.back;
     const prev_front = this.front;
