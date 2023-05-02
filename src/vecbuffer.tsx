@@ -68,6 +68,18 @@ export class Vec4Buffer {
     const offset = i * this.itemsize;
     vec.toArray(this.data, offset);
   }
+
+  deep_copy(): Vec4Buffer {
+    return new Vec4Buffer(new Float32Array(this.data));
+  }
+
+  data_array(): Float32Array {
+    if (this.data instanceof Float32Array) {
+      return this.data;
+    } else {
+      return this.deep_copy().data_array();
+    }
+  }
 }
 
 export class Vec3Buffer {
@@ -125,6 +137,18 @@ export class Vec3Buffer {
     const offset = i * this.itemsize;
     vec.toArray(this.data, offset);
   }
+
+  deep_copy(): Vec3Buffer {
+    return new Vec3Buffer(new Float32Array(this.data));
+  }
+
+  data_array(): Float32Array {
+    if (this.data instanceof Float32Array) {
+      return this.data;
+    } else {
+      return this.deep_copy().data_array();
+    }
+  }
 }
 
 export class Vec2Buffer {
@@ -181,6 +205,18 @@ export class Vec2Buffer {
 
     const offset = i * this.itemsize;
     vec.toArray(this.data, offset);
+  }
+
+  deep_copy(): Vec2Buffer {
+    return new Vec2Buffer(new Float32Array(this.data));
+  }
+
+  data_array(): Float32Array {
+    if (this.data instanceof Float32Array) {
+      return this.data;
+    } else {
+      return this.deep_copy().data_array();
+    }
   }
 }
 

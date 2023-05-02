@@ -28,6 +28,8 @@ import {
 } from "three";
 import _ from "underscore";
 
+import { Vec2Buffer, Vec3Buffer, Vec4Buffer } from "./vecbuffer";
+
 const PASS_THROUGH_VERTEX: string = `
   in vec3 position;
   void main() {
@@ -59,7 +61,7 @@ class MRTComputationRenderer {
     // Not clear, this appears to fire up a standard orthographic camera.
     // @ts-expect-error
     this.camera = new Camera();
-    this.camera.position.z = 1;
+    this.camera.position.z = 2;
 
     this.mesh = new Mesh(new PlaneGeometry(2, 2));
     this.scene.add(this.mesh);
@@ -96,28 +98,61 @@ class MRTComputationRenderer {
     this.renderer.toneMapping = prevToneMapping;
   }
 
-  create_texture(data?: Float32Array) {
-    if (!data) {
-      data = new Float32Array(this.sizeX * this.sizeY * 4);
-    }
+  create_texture(data?: Vec4Buffer | Float32Array): DataTexture {
+    if (data instanceof Float32Array) {
+      if (data.length != this.sizeX * this.sizeY * 4) {
+        throw new Error("Invalid initial data size.");
+      }
 
-    if (data.length != this.sizeX * this.sizeY * 4) {
-      throw new Error("Invalid initial data size.");
+      const texture = new DataTexture(
+        data,
+        this.sizeX,
+        this.sizeY,
+        RGBAFormat,
+        FloatType,
+      );
+      texture.needsUpdate = true;
+      return texture;
+    } else if (!data) {
+      return this.create_texture(Vec4Buffer.empty(this.sizeX * this.sizeY));
+    } else if (data instanceof Vec4Buffer) {
+      return this.create_texture(data.data_array());
+    } else {
+      throw new Error("Invalid data, expected Vec4 buffer.");
     }
-
-    const texture = new DataTexture(
-      data,
-      this.sizeX,
-      this.sizeY,
-      RGBAFormat,
-      FloatType,
-    );
-    texture.needsUpdate = true;
-    return texture;
   }
 }
 
-class MRTRenderCycle<InitUT, ComputeUT> {
+function textures_by_name(textures: Texture[]): { [name: string]: Texture } {
+  const result: { [name: string]: Texture } = {};
+  _.each(textures, (t) => {
+    result[t.name] = t;
+  });
+
+  return result;
+}
+
+export function as_uniforms(vals: { [name: string]: any }) {
+  return _.mapObject(vals, (val, name) => {
+    return { value: val };
+  });
+}
+
+export function update_uniforms(
+  uniforms: { [name: string]: IUniform },
+  vals: { [name: string]: any },
+) {
+  return _.mapObject(vals, (val, name) => {
+    uniforms[name].value = val;
+  });
+
+  return uniforms;
+}
+
+class MRTRenderCycle<
+  InitUT extends { [name: string]: IUniform },
+  ComputeUT extends { [name: string]: IUniform },
+> {
   public back: WebGLMultipleRenderTargets;
   public front: WebGLMultipleRenderTargets;
 
@@ -178,7 +213,7 @@ class MRTRenderCycle<InitUT, ComputeUT> {
     this.renderer.doRenderTarget(this.compute_material, this.front);
   }
 
-  standard_uniforms(): { [uniform: string]: IUniform } {
+  standard_uniforms() {
     return {
       resolution: {
         value: new Vector2(this.renderer.sizeX, this.renderer.sizeY),
@@ -209,6 +244,17 @@ class MRTRenderCycle<InitUT, ComputeUT> {
 
     _.each(this.front.texture, (texture: Texture) => {
       result[`${texture.name}`] = { value: texture };
+    });
+
+    return result;
+  }
+
+  textures(): {
+    [name: string]: Texture;
+  } {
+    const result: { [name: string]: Texture } = {};
+    _.each(this.front.texture, (texture: Texture) => {
+      result[texture.name] = texture;
     });
 
     return result;
