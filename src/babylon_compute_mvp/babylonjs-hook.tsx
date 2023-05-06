@@ -201,7 +201,9 @@ export default (
     let engine: Engine;
 
     if (webGPU) {
-      const webgpu_engine = new WebGPUEngine(reactCanvas.current);
+      const webgpu_engine = new WebGPUEngine(reactCanvas.current, {
+        powerPreference: "high-performance",
+      });
       await webgpu_engine.initAsync();
 
       engine = webgpu_engine;
