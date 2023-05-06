@@ -1,7 +1,11 @@
+// @refresh reset
+
 import { Engine, Scene } from "@babylonjs/core";
 import * as BABYLON from "@babylonjs/core";
 import SceneComponent from "./babylonjs-hook";
 import { useRef } from "react";
+
+import nj from "@d4c/numjs";
 
 export function App() {
   const boids = useRef<Boid>(null!);
@@ -46,9 +50,6 @@ export function App() {
     );
   };
 
-  /**
-   * Will run on every frame render.  We are spinning the box on y-axis.
-   */
   const onRender = (scene: Scene) => {
     boids.current.update();
   };
@@ -343,6 +344,7 @@ struct Particle {
   pos : vec2<f32>,
   vel : vec2<f32>,
 };
+
 struct SimParams {
   deltaT : f32,
   rule1Distance : f32,
