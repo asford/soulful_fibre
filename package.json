@@ -9,6 +9,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@babylonjs/core": "^6.2.0",
+    "@babylonjs/gui": "^6.2.0",
     "@d4c/numjs": "^0.17.34",
     "@mediapipe/camera_utils": "^0.3.1675466862",
     "@mediapipe/control_utils": "^0.6.1675466023",
