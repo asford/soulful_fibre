@@ -22,7 +22,7 @@ import { Vec4Buffer, Vec3Buffer, Vec2Buffer } from "../vecbuffer";
 import _, { min } from "underscore";
 import { movingAverage } from "@tensorflow/tfjs";
 
-const control_params = (params, defaults) => {
+const control_params = (params: any, defaults: any) => {
   return _.mapObject(params, (val, name) => {
     return { value: val, ...defaults };
   });
@@ -53,6 +53,12 @@ const ParticlesFBO = (props: { kpoints: number }) => {
       { min: -1, max: 1 },
     ),
   );
+
+  useControls({
+    reinit: button(() => {
+      engine.init();
+    }),
+  });
 
   const engine = useMemo(() => {
     const compute = new MRTComputationRenderer(width, height, gl);
