@@ -6,11 +6,22 @@ import * as THREE from "three";
 import SceneComponent from "./babylonjs-hook";
 import { useRef } from "react";
 
-import * as _ from "underscore";
+import * as _ from "lodash";
 import ndarray from "ndarray";
 import { updateCamera } from "@react-three/fiber/dist/declarations/src/core/utils";
 import { GUI } from "dat.gui";
 
+import { UniformAdapter, StorageAdapter } from "./compute_util";
+
+import {
+  Vector2 as vec2,
+  Vector3 as vec3,
+  Vector4 as vec4,
+  Color3 as col3,
+  Color4 as col4,
+} from "@babylonjs/core";
+
+import * as d3 from "d3";
 export function App() {
   const boids = useRef<Boid>(null!);
   const gui = useRef<GUI>(null!);
@@ -18,7 +29,7 @@ export function App() {
   const onSceneReady = (scene: Scene) => {
     const engine = scene.getEngine();
 
-    const params: SimParams = {
+    const params: Params = {
       deltaT: 0.04,
       rule1Distance: 0.1,
       rule2Distance: 0.025,
@@ -55,6 +66,7 @@ export function App() {
     gui.current = new GUI();
     const params_folder = gui.current.addFolder("Params");
     _.each(params, (val, name) => {
+      // @ts-expect-error
       params_folder.add(params, name).listen();
     });
     gui.current.add(boids.current, "init_particles");
@@ -101,121 +113,22 @@ export function App() {
   );
 }
 
-interface SimParams {
-  deltaT: number;
-  rule1Distance: number;
-  rule2Distance: number;
-  rule3Distance: number;
-  rule1Scale: number;
-  rule2Scale: number;
-  rule3Scale: number;
-}
-
-interface Field {
-  size: number;
-  offset: number;
-}
-
-class UniformBuffer {
-  fields: { [name: string]: Field };
-  buffer: BABYLON.UniformBuffer;
-
-  allocate(engine: Engine, name: string) {
-    this.buffer = new BABYLON.UniformBuffer(engine, undefined, undefined, name);
-
-    _.each(this.fields, (field, name) => {
-      this.buffer.addUniform(name, field.size);
-    });
-
-    this.buffer.create();
-
-    return this;
-  }
-
-  update(vals: { [name: string]: number }) {
-    _.each(vals, (val, name) => {
-      const field = this.fields[name];
-      if (!field) {
-        return;
-      }
-
-      if (field.size != 1) {
-        throw Error("Can only update float uniforms.");
-      }
-
-      this.buffer.updateFloat(name, val);
-    });
-
-    this.buffer.update();
-  }
-}
-
-class ArrayDataBuffer {
-  fields: { [name: string]: Field };
-  record_size: number;
-
-  source_buffer: Float32Array;
-  storage_buffer: BABYLON.StorageBuffer;
-  vertex_buffers: BABYLON.VertexBuffer[];
-
-  allocate(engine: Engine, size: number, vertex_name_prefix: string) {
-    this.source_buffer = new Float32Array(size * this.record_size);
-    this.storage_buffer = new BABYLON.StorageBuffer(
-      engine,
-      this.source_buffer.byteLength,
-      BABYLON.Constants.BUFFER_CREATIONFLAG_VERTEX |
-        BABYLON.Constants.BUFFER_CREATIONFLAG_WRITE,
-    );
-
-    const vertex_view = (kind: string, field: Field) => {
-      const data = this.storage_buffer.getBuffer();
-      return new BABYLON.VertexBuffer(
-        engine,
-        data,
-        kind,
-        false,
-        false,
-        this.record_size,
-        true,
-        field.offset,
-        field.size,
-      );
-    };
-
-    this.vertex_buffers = _.map(this.fields, (field, name) => {
-      return vertex_view(vertex_name_prefix + name, field);
-    });
-
-    return this;
-  }
-
-  field_views() {
-    const size = this.source_buffer.length / this.record_size;
-    return _.mapObject(this.fields, (field) => {
-      return ndarray(
-        this.source_buffer,
-        [size, field.size],
-        [this.record_size, 1],
-        field.offset,
-      );
-    });
-  }
-
-  update() {
-    this.storage_buffer.update(this.source_buffer);
-  }
-}
+const null_particle: Particle = {
+  pos: new vec2(),
+  vel: new vec2(),
+  color: new col4(),
+};
 
 class Boid {
   numParticles: number;
-  params: SimParams;
+  params: Params;
 
-  params_buffer: SimParamData;
-  particle_buffer: ParticleData;
+  params_buffer: UniformAdapter<Params>;
+  particle_buffer: StorageAdapter<Particle>;
   cs: BABYLON.ComputeShader;
   mesh: BABYLON.Mesh;
 
-  constructor(numParticles: number, params: SimParams, scene: Scene) {
+  constructor(numParticles: number, params: Params, scene: Scene) {
     const engine = scene.getEngine();
 
     this.numParticles = numParticles;
@@ -268,13 +181,15 @@ class Boid {
 
     // Create uniform / storage / vertex buffers
     this.params = params;
-    this.params_buffer = new SimParamData().allocate(engine, "simParams");
+    this.params_buffer = new UniformAdapter(this.params, engine, "params");
 
-    this.particle_buffer = new ParticleData().allocate(
-      engine,
+    this.particle_buffer = new StorageAdapter(
+      null_particle,
       numParticles,
+      engine,
       "a_particle_",
     );
+
     this.init_particles();
 
     _.each(this.particle_buffer.vertex_buffers, (vertex_buffer) => {
@@ -303,27 +218,32 @@ class Boid {
   }
 
   init_particles() {
-    const state = this.particle_buffer.field_views();
+    const part = this.particle_buffer.get(0);
+    const unit = d3.randomUniform(-1, 1);
 
     for (let i = 0; i < this.numParticles; ++i) {
-      state.pos.set(i, 0, 2 * (Math.random() - 0.5));
-      state.pos.set(i, 1, 2 * (Math.random() - 0.5));
+      part.pos.x = unit();
+      part.pos.y = unit();
 
-      state.vel.set(i, 0, 2 * (Math.random() - 0.5) * 0.1);
-      state.vel.set(i, 1, 2 * (Math.random() - 0.5) * 0.1);
+      part.vel.x = unit() * 0.1;
+      part.vel.y = unit() * 0.1;
 
       const color = new THREE.Color();
       color.setHSL((i / this.numParticles) * 360.0, 0.6, 0.5);
-      state.color.set(i, 0, color.r);
-      state.color.set(i, 1, color.g);
-      state.color.set(i, 2, color.b);
-      state.color.set(i, 3, 1.0);
+      part.color.r = color.r;
+      part.color.g = color.g;
+      part.color.b = color.b;
+      part.color.a = 1.0;
+
+      this.particle_buffer.set(i, part);
     }
 
     this.particle_buffer.update();
   }
 
+  _step: number = 0;
   step() {
+    this._step += 1;
     this.params_buffer.update(this.params);
     this.cs.dispatch(Math.ceil(this.numParticles / 64));
   }
@@ -356,26 +276,20 @@ const boidFragmentShader = `
     }
 `;
 
-class ParticleData extends ArrayDataBuffer {
-  fields = {
-    pos: { size: 2, offset: 0 },
-    vel: { size: 2, offset: 2 },
-    color: { size: 4, offset: 4 },
-  };
-
-  record_size = 8;
+interface Particle {
+  pos: vec2;
+  vel: vec2;
+  color: col4;
 }
 
-class SimParamData extends UniformBuffer {
-  fields = {
-    deltaT: { size: 1, offset: 0 },
-    rule1Distance: { size: 1, offset: 1 },
-    rule2Distance: { size: 1, offset: 2 },
-    rule3Distance: { size: 1, offset: 3 },
-    rule1Scale: { size: 1, offset: 4 },
-    rule2Scale: { size: 1, offset: 5 },
-    rule3Scale: { size: 1, offset: 6 },
-  };
+interface Params {
+  deltaT: number;
+  rule1Distance: number;
+  rule2Distance: number;
+  rule3Distance: number;
+  rule1Scale: number;
+  rule2Scale: number;
+  rule3Scale: number;
 }
 
 const boidComputeShader = `
@@ -385,7 +299,7 @@ struct Particle {
   color : vec4<f32>,
 };
 
-struct SimParams {
+struct Params {
   deltaT : f32,
   rule1Distance : f32,
   rule2Distance : f32,
@@ -395,7 +309,7 @@ struct SimParams {
   rule3Scale : f32,
 };
 
-@binding(0) @group(0) var<uniform> params : SimParams;
+@binding(0) @group(0) var<uniform> params : Params;
 @binding(1) @group(0) var<storage, read_write> particles : array<Particle>;
 
 // https://github.com/austinEng/Project6-Vulkan-Flocking/blob/master/data/shaders/computeparticles/particle.comp

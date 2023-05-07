@@ -1,3 +1,4 @@
+/// <reference types="vitest" />
 import * as fs from "fs";
 import * as path from "path";
 import * as _ from "underscore";
@@ -21,6 +22,7 @@ export default defineConfig({
     },
     target: "esnext",
   },
+  test: {},
 });
 
 // https://github.com/google/mediapipe/issues/2883
