@@ -26,22 +26,58 @@ import {
 } from "@babylonjs/core";
 
 import * as d3 from "d3";
+
+function add_folder<V extends object>(
+  gui: GUI,
+  folder_name: string,
+  obj: V,
+  keys?: string[],
+  opts?: { [name: string]: { min?: number; max?: number; step?: number } },
+) {
+  const folder = gui.addFolder(folder_name);
+  if (!keys) {
+    keys = _.keys(obj);
+  }
+  _.each(keys, (name) => {
+    const control = folder.add(obj, name).listen();
+    if (opts && opts[name]) {
+      if (opts[name].max !== undefined) {
+        control.max(opts[name].max);
+      }
+      if (opts[name].min !== undefined) {
+        control.min(opts[name].min);
+      }
+      if (opts[name].step !== undefined) {
+        control.step(opts[name].step);
+      }
+    }
+  });
+}
+// Clear gui wrapper on refresh
+function init_gui(): GUI {
+  _.each(document.getElementsByClassName("dg main"), (elem) => {
+    elem.remove();
+  });
+
+  return new GUI();
+}
 export function App() {
+  const params = useRef<Params>({
+    deltaT: 0.06,
+    rule1Distance: 0.15,
+    rule2Distance: 0.025,
+    rule3Distance: 0.025,
+    rule1Scale: 0.02,
+    rule2Scale: 0.05,
+    rule3Scale: 0.005,
+  });
+
   const boids = useRef<Boid>(null!);
   const gui = useRef<GUI>(null!);
 
   const onSceneReady = (scene: Scene) => {
     const engine = scene.getEngine();
-
-    const params: Params = {
-      deltaT: 0.04,
-      rule1Distance: 0.1,
-      rule2Distance: 0.025,
-      rule3Distance: 0.025,
-      rule1Scale: 0.02,
-      rule2Scale: 0.05,
-      rule3Scale: 0.005,
-    };
+    scene.clearColor = BABYLON.Color3.Black().toColor4(1.0);
 
     var camera = new BABYLON.ArcRotateCamera(
       "camera",
@@ -60,36 +96,48 @@ export function App() {
       throw Error("Scene does not support compute shaders.");
     }
 
-    boids.current = new Boid(1000, params, scene);
+    gui.current = init_gui();
+    add_folder(gui.current, "params", params.current);
 
-    // Clear gui wrapper on refresh
-    _.each(document.getElementsByClassName("dg main"), (elem) => {
-      elem.remove();
-    });
+    boids.current = new Boid(1000, params.current, scene);
 
-    gui.current = new GUI();
-    const params_folder = gui.current.addFolder("Params");
-    _.each(params, (val, name) => {
-      params_folder.add(params, name).listen();
-    });
+    function attach_bloom_pipeline(
+      name: string,
+      weight: number,
+      kernel: number,
+      threshold: number,
+    ) {
+      const bloom = new BABYLON.BloomEffect(scene, 1, 0, 0);
+      bloom.weight = weight;
+      bloom.kernel = kernel;
+      bloom.threshold = threshold;
+
+      var standardPipeline = new BABYLON.PostProcessRenderPipeline(
+        engine,
+        `${name}_pipeline`,
+      );
+      standardPipeline.addEffect(bloom);
+
+      // Add pipeline to the scene's manager and attach to the camera
+      scene.postProcessRenderPipelineManager.addPipeline(standardPipeline);
+      scene.postProcessRenderPipelineManager.attachCamerasToRenderPipeline(
+        `${name}_pipeline`,
+        camera,
+      );
+
+      add_folder(gui.current, name, bloom, ["threshold", "weight", "kernel"], {
+        threshold: { min: 0.0, max: 1.0, step: 0.001 },
+        weight: { min: 0.0, max: 8, step: 0.1 },
+        kernel: { min: 0.0, max: 256, step: 1 },
+      });
+
+      return bloom;
+    }
+
+    attach_bloom_pipeline("bloom0", 2.2, 12, 0.01);
+    attach_bloom_pipeline("bloom1", 1, 160, 0.01);
+
     gui.current.add(boids.current, "init_particles");
-
-    // Create a bloom overlay
-    var standardPipeline = new BABYLON.PostProcessRenderPipeline(
-      engine,
-      "standardPipeline",
-    );
-
-    var bloom = new BABYLON.BloomEffect(scene, 1, 5, 15);
-    bloom.threshold = 0.04;
-    standardPipeline.addEffect(bloom);
-
-    // Add pipeline to the scene's manager and attach to the camera
-    scene.postProcessRenderPipelineManager.addPipeline(standardPipeline);
-    scene.postProcessRenderPipelineManager.attachCamerasToRenderPipeline(
-      "standardPipeline",
-      camera,
-    );
   };
 
   const onRender = (scene: Scene) => {
@@ -236,7 +284,7 @@ class Boid {
       part.color.r = color.r;
       part.color.g = color.g;
       part.color.b = color.b;
-      part.color.a = 1.0;
+      part.color.a = 0.5;
 
       this.particle_buffer.set(i, part);
     }
@@ -247,8 +295,10 @@ class Boid {
   _step: number = 0;
   step() {
     this._step += 1;
+
     this.params_buffer.update(this.params);
-    this.cs.dispatch(Math.ceil(this.numParticles / 64));
+    this.cs.dispatchWhenReady(Math.ceil(this.numParticles / 64));
+
     if (this._step % 100 == 0) {
       console.log("step", this._step);
     }

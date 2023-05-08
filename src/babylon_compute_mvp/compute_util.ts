@@ -198,12 +198,7 @@ export class UniformAdapter<V extends BufferableStruct> {
   constructor(proto: V, engine: BABYLON.Engine, name: string) {
     this.meta = new RecordMeta(proto);
 
-    this.buffer = new BABYLON.UniformBuffer(
-      engine,
-      this.meta.asArray(proto),
-      undefined,
-      name,
-    );
+    this.buffer = new BABYLON.UniformBuffer(engine, undefined, undefined, name);
 
     _.each(this.meta.fields, (field, name) => {
       this.buffer.addUniform(field.name, field.size);
