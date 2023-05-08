@@ -11,7 +11,11 @@ import ndarray from "ndarray";
 import { updateCamera } from "@react-three/fiber/dist/declarations/src/core/utils";
 import { GUI } from "dat.gui";
 
-import { UniformAdapter, StorageAdapter } from "./compute_util";
+import {
+  UniformAdapter,
+  StorageAdapter,
+  BufferableStruct,
+} from "./compute_util";
 
 import {
   Vector2 as vec2,
@@ -66,7 +70,6 @@ export function App() {
     gui.current = new GUI();
     const params_folder = gui.current.addFolder("Params");
     _.each(params, (val, name) => {
-      // @ts-expect-error
       params_folder.add(params, name).listen();
     });
     gui.current.add(boids.current, "init_particles");
@@ -246,6 +249,9 @@ class Boid {
     this._step += 1;
     this.params_buffer.update(this.params);
     this.cs.dispatch(Math.ceil(this.numParticles / 64));
+    if (this._step % 100 == 0) {
+      console.log("step", this._step);
+    }
   }
 }
 
@@ -276,13 +282,13 @@ const boidFragmentShader = `
     }
 `;
 
-interface Particle {
+interface Particle extends BufferableStruct {
   pos: vec2;
   vel: vec2;
   color: col4;
 }
 
-interface Params {
+interface Params extends BufferableStruct {
   deltaT: number;
   rule1Distance: number;
   rule2Distance: number;

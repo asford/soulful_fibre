@@ -2,13 +2,6 @@ import * as BABYLON from "@babylonjs/core";
 import * as _ from "lodash";
 import ndarray from "ndarray";
 
-const types_by_size = {
-  2: [BABYLON.Vector2],
-  3: [BABYLON.Vector3, BABYLON.Color3],
-  4: [BABYLON.Vector4, BABYLON.Color4, BABYLON.Quaternion],
-  16: [BABYLON.Matrix],
-};
-
 function is_any(v: any, types: any[]): boolean {
   return _.some(
     _.map(types, (t) => {
@@ -21,20 +14,24 @@ function is_any(v: any, types: any[]): boolean {
   );
 }
 
-export function value_size(value: any): number {
+export type FloatArray = number[] | Float32Array;
+
+export interface Bufferable {
+  toArray(array: FloatArray, index?: number): this;
+  fromArray(array: FloatArray, index?: number): this;
+  asArray(): number[];
+}
+
+export interface BufferableStruct {
+  [key: string]: number | Bufferable;
+}
+
+export function value_size(value: number | Bufferable): number {
   if (typeof value === "number") {
     return 1;
-  } else if (is_any(value, types_by_size[2])) {
-    return 2;
-  } else if (is_any(value, types_by_size[3])) {
-    return 3;
-  } else if (is_any(value, types_by_size[4])) {
-    return 4;
-  } else if (is_any(value, types_by_size[16])) {
-    return 16;
+  } else {
+    return value.asArray().length;
   }
-
-  throw Error(`Unsupported value: ${value}`, value);
 }
 
 export interface FieldMeta {
@@ -43,7 +40,7 @@ export interface FieldMeta {
   offset: number;
 }
 
-export function struct_meta<V extends object>(proto: V): FieldMeta[] {
+export function struct_meta<V extends BufferableStruct>(proto: V): FieldMeta[] {
   var offset = 0;
 
   const result = _.map(proto, (value, name) => {
@@ -63,7 +60,7 @@ export function struct_meta<V extends object>(proto: V): FieldMeta[] {
   return result;
 }
 
-class RecordMeta<V extends object> {
+class RecordMeta<V extends BufferableStruct> {
   proto: V;
   fields: FieldMeta[];
   record_size: number;
@@ -76,9 +73,47 @@ class RecordMeta<V extends object> {
       this.record_size += field.size;
     });
   }
+
+  asArray(val: V): number[] {
+    const result: number[] = new Array(this.record_size);
+    this.toArray(result, 0, val);
+    return result;
+  }
+
+  toArray(array: FloatArray, idx: number, val: V) {
+    _.each(this.fields, (field) => {
+      const loc = idx * this.record_size + field.offset;
+      const fval = val[field.name];
+
+      if (typeof fval === "number") {
+        array[loc] = fval;
+      } else {
+        return fval.toArray(array, loc);
+      }
+    });
+  }
+
+  fromArray(array: FloatArray, idx: number, into?: V): V {
+    if (!into) {
+      into = _.cloneDeep(this.proto);
+    }
+
+    _.each(this.fields, (field) => {
+      const loc = idx * this.record_size + field.offset;
+      if (field.size == 1) {
+        // @ts-expect-error
+        into[field.name] = array[loc];
+      } else {
+        // @ts-expect-error
+        into[field.name].fromArray(array, loc);
+      }
+    });
+
+    return into;
+  }
 }
 
-export class StorageAdapter<V extends object> {
+export class StorageAdapter<V extends BufferableStruct> {
   meta: RecordMeta<V>;
 
   size: number;
@@ -88,38 +123,6 @@ export class StorageAdapter<V extends object> {
 
   storage_buffer: BABYLON.StorageBuffer;
   vertex_buffers: BABYLON.VertexBuffer[];
-
-  set(idx: number, val: V) {
-    _.each(this.meta.fields, (field) => {
-      const loc = idx * this.meta.record_size + field.offset;
-      if (field.size == 1) {
-        // @ts-expect-error
-        this.source_buffer[loc] = val[field.name];
-      } else {
-        // @ts-expect-error
-        val[field.name].toArray(this.source_buffer, loc);
-      }
-    });
-  }
-
-  get(idx: number, into?: V): V {
-    if (!into) {
-      into = _.cloneDeep(this.meta.proto);
-    }
-
-    _.each(this.meta.fields, (field) => {
-      const loc = idx * this.meta.record_size + field.offset;
-      if (field.size == 1) {
-        // @ts-expect-error
-        into[field.name] = this.source_buffer[loc];
-      } else {
-        // @ts-expect-error
-        into[field.name].fromArray(this.source_buffer, loc);
-      }
-    });
-
-    return into;
-  }
 
   constructor(
     proto: V,
@@ -175,20 +178,32 @@ export class StorageAdapter<V extends object> {
       );
     });
   }
-
   update() {
     this.storage_buffer.update(this.source_buffer);
   }
+
+  get(idx: number, into?: V): V {
+    return this.meta.fromArray(this.source_buffer, idx, into);
+  }
+
+  set(idx: number, val: V) {
+    this.meta.toArray(this.source_buffer, idx, val);
+  }
 }
 
-export class UniformAdapter<V extends object> {
+export class UniformAdapter<V extends BufferableStruct> {
   meta: RecordMeta<V>;
   buffer: BABYLON.UniformBuffer;
 
   constructor(proto: V, engine: BABYLON.Engine, name: string) {
     this.meta = new RecordMeta(proto);
 
-    this.buffer = new BABYLON.UniformBuffer(engine, undefined, undefined, name);
+    this.buffer = new BABYLON.UniformBuffer(
+      engine,
+      this.meta.asArray(proto),
+      undefined,
+      name,
+    );
 
     _.each(this.meta.fields, (field, name) => {
       this.buffer.addUniform(field.name, field.size);
@@ -200,22 +215,26 @@ export class UniformAdapter<V extends object> {
   }
 
   update(vals: V): void;
-  update(vals: { [name: string]: number }): void;
+  update(vals: { [name: string]: number | Bufferable }): void;
   update(vals: object): void {
     const fields_by_name = _.fromPairs(
       _.map(this.meta.fields, (f) => [f.name, f]),
     );
+
+    const data = this.buffer.getData();
+
     _.each(vals, (val, name) => {
       const field = fields_by_name[name];
       if (!field) {
         return;
       }
 
-      if (field.size != 1) {
-        throw Error("Can only update float uniforms.");
+      if (typeof val == "number") {
+        this.buffer.updateUniform(field.name, [val], field.size);
+      } else {
+        // @ts-expect-error
+        this.buffer.updateUniform(field.name, val.asArray(), field.size);
       }
-
-      this.buffer.updateFloat(name, val);
     });
 
     this.buffer.update();
