@@ -30,15 +30,28 @@ import {
 import * as d3 from "d3";
 
 export function App() {
-  const params = useRef<Params>({
-    deltaT: 0.06,
-    cohesion_dist: 0.15,
-    separation_dist: 0.025,
-    alignment_dist: 0.025,
-    cohesion_scale: 0.02,
-    separation_scale: 0.05,
-    alignment_scale: 0.005,
-  });
+  const defaults: {
+    params: Params;
+    boid_opts: BoidOpts;
+    glows: { intensity: number; blurKernelSize: number }[];
+  } = {
+    params: {
+      deltaT: 0.06,
+      cohesion_dist: 0.15,
+      separation_dist: 0.025,
+      alignment_dist: 0.025,
+      cohesion_scale: 0.02,
+      separation_scale: 0.05,
+      alignment_scale: 0.005,
+    },
+    boid_opts: { init_scale: 0.01, size_median: 0.2, size_range: 0.05 },
+    glows: [
+      { intensity: 2, blurKernelSize: 8 },
+      { intensity: 1, blurKernelSize: 32 },
+      { intensity: 2, blurKernelSize: 64 },
+      { intensity: 2, blurKernelSize: 128 },
+    ],
+  };
 
   const params_opts = {
     deltaT: [-0.25, 0.25, 0.005],
@@ -50,6 +63,7 @@ export function App() {
     alignment_scale: [-0.01, 0.05, 0.001],
   };
 
+  const opts = useRef(_.cloneDeep(defaults));
   const boids = useRef<Boid>(null!);
   const gui = useRef<GUI>(null!);
 
@@ -75,9 +89,15 @@ export function App() {
     }
 
     gui.current = init_gui();
-    add_folder(gui.current, "params", params.current, params_opts).open();
+    add_folder(gui.current, "params", opts.current.params, params_opts).open();
+    add_folder(gui.current, "boid_opts", opts.current.boid_opts, params_opts);
 
-    boids.current = new Boid(1000, params.current, scene);
+    boids.current = new Boid(
+      scene,
+      4000,
+      opts.current.params,
+      opts.current.boid_opts,
+    );
 
     function attach_bloom_pipeline(
       name: string,
@@ -118,8 +138,41 @@ export function App() {
       return bloom;
     }
 
-    attach_bloom_pipeline("bloom0", 2.2, 12, 0.01);
-    attach_bloom_pipeline("bloom1", 1, 160, 0.01);
+    function attach_glow_pipeline(
+      name: string,
+      params: {
+        intensity: number;
+        blurKernelSize: number;
+      },
+    ) {
+      var gl = new BABYLON.GlowLayer("glow", scene);
+      _.merge(gl, params);
+      gl.addIncludedOnlyMesh(boids.current.mesh);
+      // set up material to use glow layer
+      gl.referenceMeshToUseItsOwnMaterial(boids.current.mesh);
+
+      add_folder(
+        gui.current,
+        name,
+        gl,
+        {
+          intensity: [0.0, 3, 0.1],
+          blurKernelSize: [0.0, 256, 1],
+        },
+        true,
+      );
+    }
+
+    // Not using bloom pipeline, which relies on intensity masking.
+    // This means stacked bloom layers over-add each other.
+    // Instead configure glow layer directly from the source mesh color.
+    // attach_bloom_pipeline("bloom0", 2.2, 12, 0.01);
+    // attach_bloom_pipeline("bloom1", 1, 160, 0.01);
+
+    // Semi-simulate the unreal bloom effect via stacked glows
+    _.each(opts.current.glows, (params, idx) => {
+      attach_glow_pipeline(`glow_${idx}`, params);
+    });
 
     gui.current.add(boids.current, "init_particles");
   };
@@ -148,30 +201,51 @@ export function App() {
   );
 }
 
-const null_particle: Particle = {
-  pos: new vec2(),
-  vel: new vec2(),
-  color: new col4(),
-};
+interface BoidOpts {
+  init_scale: number;
+  size_median: number;
+  size_range: number;
+}
 
 class Boid {
-  numParticles: number;
-  params: Params;
-
   params_buffer: UniformAdapter<Params>;
   particle_buffer: StorageAdapter<Particle>;
   cs: BABYLON.ComputeShader;
   mesh: BABYLON.Mesh;
 
-  constructor(numParticles: number, params: Params, scene: Scene) {
+  constructor(
+    scene: Scene,
+    public num_particles: number,
+    public params: Params,
+    public opts: BoidOpts,
+  ) {
     const engine = scene.getEngine();
 
-    this.numParticles = numParticles;
+    this.num_particles = num_particles;
 
-    // Create boid mesh
+    // Create boid mesh.
     this.mesh = BABYLON.MeshBuilder.CreatePlane("plane", { size: 1 }, scene);
-    this.mesh.forcedInstanceCount = numParticles;
+    this.mesh.forcedInstanceCount = num_particles;
 
+    this.mesh.setIndices([0, 1, 2]);
+    this.mesh.setVerticesBuffer(
+      new BABYLON.VertexBuffer(
+        engine,
+        _.flatten([
+          [0.0, 0.02],
+          [-0.01, -0.02],
+          [0.01, -0.02],
+        ]),
+        "a_pos",
+        false,
+        false,
+        2,
+        false,
+      ),
+    );
+
+    // Material
+    // https://www.youtube.com/watch?v=5ZuM-WLqEPQ
     const mat = new BABYLON.ShaderMaterial(
       "mat",
       scene,
@@ -185,26 +259,13 @@ class Boid {
           "a_particle_pos",
           "a_particle_vel",
           "a_particle_color",
+          "a_particle_scale",
         ],
       },
     );
-
-    mat.alpha = 0.95;
+    mat.alpha = 0.9;
 
     this.mesh.material = mat;
-
-    const buffSpriteVertex = new BABYLON.VertexBuffer(
-      engine,
-      [-0.01, -0.02, 0.01, -0.02, 0.0, 0.02],
-      "a_pos",
-      false,
-      false,
-      2,
-      false,
-    );
-
-    this.mesh.setIndices([0, 1, 2]);
-    this.mesh.setVerticesBuffer(buffSpriteVertex);
 
     // Create uniform / storage / vertex buffers
     this.params = params;
@@ -212,7 +273,7 @@ class Boid {
 
     this.particle_buffer = new StorageAdapter(
       null_particle,
-      numParticles,
+      num_particles,
       engine,
       "a_particle_",
     );
@@ -247,20 +308,27 @@ class Boid {
   init_particles() {
     const part = this.particle_buffer.get(0);
     const unit = d3.randomUniform(-1, 1);
+    const scale = d3.randomUniform(
+      this.opts.size_median - this.opts.size_range,
+      this.opts.size_median + this.opts.size_range,
+    );
 
-    for (let i = 0; i < this.numParticles; ++i) {
-      part.pos.x = unit();
-      part.pos.y = unit();
+    for (let i = 0; i < this.num_particles; ++i) {
+      // Compress into small space for "explosive start"
+      part.pos.x = unit() * this.opts.init_scale;
+      part.pos.y = unit() * this.opts.init_scale;
 
       part.vel.x = unit() * 0.1;
       part.vel.y = unit() * 0.1;
 
       const color = new THREE.Color();
-      color.setHSL((i / this.numParticles) * 360.0, 0.6, 0.5);
+      color.setHSL((i / this.num_particles) * 360.0, 0.6, 0.5);
       part.color.r = color.r;
       part.color.g = color.g;
       part.color.b = color.b;
-      part.color.a = 0.5;
+      part.color.a = 1.0;
+
+      part.scale = scale();
 
       this.particle_buffer.set(i, part);
     }
@@ -273,7 +341,7 @@ class Boid {
     this._step += 1;
 
     this.params_buffer.update(this.params);
-    this.cs.dispatchWhenReady(Math.ceil(this.numParticles / 64));
+    this.cs.dispatchWhenReady(Math.ceil(this.num_particles / 64));
   }
 }
 
@@ -282,6 +350,7 @@ const boidVertexShader = `
     attribute vec2 a_particle_pos;
     attribute vec2 a_particle_vel;
     attribute vec4 a_particle_color;
+    attribute float a_particle_scale;
 
     varying vec4 frag_color;
     
@@ -290,7 +359,7 @@ const boidVertexShader = `
         vec2 pos = vec2(
             a_pos.x * cos(angle) - a_pos.y * sin(angle),
             a_pos.x * sin(angle) + a_pos.y * cos(angle)
-        );
+        ) * a_particle_scale;
         gl_Position = vec4(pos + a_particle_pos, 0.0, 1.0);
         frag_color = a_particle_color;
     }
@@ -308,7 +377,21 @@ interface Particle extends BufferableStruct {
   pos: vec2;
   vel: vec2;
   color: col4;
+  scale: number;
+  pad1: number;
+  pad2: number;
+  pad3: number;
 }
+
+const null_particle: Particle = {
+  pos: new vec2(),
+  vel: new vec2(),
+  color: new col4(),
+  scale: 1.0,
+  pad1: 0.0,
+  pad2: 0.0,
+  pad3: 0.0,
+};
 
 interface Params extends BufferableStruct {
   deltaT: number;
@@ -325,6 +408,10 @@ struct Particle {
   pos : vec2<f32>,
   vel : vec2<f32>,
   color : vec4<f32>,
+  scale: f32,
+  pad1: f32,
+  pad2: f32,
+  pad3: f32,
 };
 
 struct Params {

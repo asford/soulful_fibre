@@ -150,6 +150,7 @@ export class StorageAdapter<V extends BufferableStruct> {
       // @ts-expect-error
       this.field_views[field.name] = view;
     });
+    _.each(_.range(this.size), (idx) => this.set(idx, proto));
 
     this.storage_buffer = new BABYLON.StorageBuffer(
       engine,
@@ -205,6 +206,7 @@ export class UniformAdapter<V extends BufferableStruct> {
     });
 
     this.buffer.create();
+    this.update(proto);
 
     return this;
   }
