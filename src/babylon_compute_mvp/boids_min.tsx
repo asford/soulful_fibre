@@ -17,6 +17,8 @@ import {
   BufferableStruct,
 } from "./compute_util";
 
+import { init_gui, add_folder } from "./gui_utils";
+
 import {
   Vector2 as vec2,
   Vector3 as vec3,
@@ -27,50 +29,26 @@ import {
 
 import * as d3 from "d3";
 
-function add_folder<V extends object>(
-  gui: GUI,
-  folder_name: string,
-  obj: V,
-  keys?: string[],
-  opts?: { [name: string]: { min?: number; max?: number; step?: number } },
-) {
-  const folder = gui.addFolder(folder_name);
-  if (!keys) {
-    keys = _.keys(obj);
-  }
-  _.each(keys, (name) => {
-    const control = folder.add(obj, name).listen();
-    if (opts && opts[name]) {
-      if (opts[name].max !== undefined) {
-        control.max(opts[name].max);
-      }
-      if (opts[name].min !== undefined) {
-        control.min(opts[name].min);
-      }
-      if (opts[name].step !== undefined) {
-        control.step(opts[name].step);
-      }
-    }
-  });
-}
-// Clear gui wrapper on refresh
-function init_gui(): GUI {
-  _.each(document.getElementsByClassName("dg main"), (elem) => {
-    elem.remove();
-  });
-
-  return new GUI();
-}
 export function App() {
   const params = useRef<Params>({
     deltaT: 0.06,
-    rule1Distance: 0.15,
-    rule2Distance: 0.025,
-    rule3Distance: 0.025,
-    rule1Scale: 0.02,
-    rule2Scale: 0.05,
-    rule3Scale: 0.005,
+    cohesion_dist: 0.15,
+    separation_dist: 0.025,
+    alignment_dist: 0.025,
+    cohesion_scale: 0.02,
+    separation_scale: 0.05,
+    alignment_scale: 0.005,
   });
+
+  const params_opts = {
+    deltaT: [-0.25, 0.25, 0.005],
+    cohesion_dist: [0, 0.5, 0.005],
+    separation_dist: [0, 0.2, 0.005],
+    alignment_dist: [0, 0.5, 0.005],
+    cohesion_scale: [-0.1, 0.5, 0.01],
+    separation_scale: [-0.1, 0.5, 0.01],
+    alignment_scale: [-0.01, 0.05, 0.001],
+  };
 
   const boids = useRef<Boid>(null!);
   const gui = useRef<GUI>(null!);
@@ -97,7 +75,7 @@ export function App() {
     }
 
     gui.current = init_gui();
-    add_folder(gui.current, "params", params.current);
+    add_folder(gui.current, "params", params.current, params_opts).open();
 
     boids.current = new Boid(1000, params.current, scene);
 
@@ -125,11 +103,17 @@ export function App() {
         camera,
       );
 
-      add_folder(gui.current, name, bloom, ["threshold", "weight", "kernel"], {
-        threshold: { min: 0.0, max: 1.0, step: 0.001 },
-        weight: { min: 0.0, max: 8, step: 0.1 },
-        kernel: { min: 0.0, max: 256, step: 1 },
-      });
+      add_folder(
+        gui.current,
+        name,
+        bloom,
+        {
+          threshold: [0.0, 1.0, 0.001],
+          weight: [0.0, 8, 0.1],
+          kernel: [0.0, 256, 1],
+        },
+        true,
+      );
 
       return bloom;
     }
@@ -185,18 +169,8 @@ class Boid {
     this.numParticles = numParticles;
 
     // Create boid mesh
-    const boidMesh = BABYLON.MeshBuilder.CreatePlane(
-      "plane",
-      { size: 1 },
-      scene,
-    );
-
-    this.mesh = boidMesh;
-
-    boidMesh.forcedInstanceCount = numParticles;
-
-    //const mesh = new BABYLON.Mesh("boid", scene);
-    //new BABYLON.Geometry(BABYLON.Geometry.RandomId(), scene, null, false, mesh);
+    this.mesh = BABYLON.MeshBuilder.CreatePlane("plane", { size: 1 }, scene);
+    this.mesh.forcedInstanceCount = numParticles;
 
     const mat = new BABYLON.ShaderMaterial(
       "mat",
@@ -215,7 +189,9 @@ class Boid {
       },
     );
 
-    boidMesh.material = mat;
+    mat.alpha = 0.95;
+
+    this.mesh.material = mat;
 
     const buffSpriteVertex = new BABYLON.VertexBuffer(
       engine,
@@ -227,8 +203,8 @@ class Boid {
       false,
     );
 
-    boidMesh.setIndices([0, 1, 2]);
-    boidMesh.setVerticesBuffer(buffSpriteVertex);
+    this.mesh.setIndices([0, 1, 2]);
+    this.mesh.setVerticesBuffer(buffSpriteVertex);
 
     // Create uniform / storage / vertex buffers
     this.params = params;
@@ -244,7 +220,7 @@ class Boid {
     this.init_particles();
 
     _.each(this.particle_buffer.vertex_buffers, (vertex_buffer) => {
-      boidMesh.setVerticesBuffer(vertex_buffer, false);
+      this.mesh.setVerticesBuffer(vertex_buffer, false);
     });
 
     // Create compute shaders
@@ -298,10 +274,6 @@ class Boid {
 
     this.params_buffer.update(this.params);
     this.cs.dispatchWhenReady(Math.ceil(this.numParticles / 64));
-
-    if (this._step % 100 == 0) {
-      console.log("step", this._step);
-    }
   }
 }
 
@@ -340,12 +312,12 @@ interface Particle extends BufferableStruct {
 
 interface Params extends BufferableStruct {
   deltaT: number;
-  rule1Distance: number;
-  rule2Distance: number;
-  rule3Distance: number;
-  rule1Scale: number;
-  rule2Scale: number;
-  rule3Scale: number;
+  cohesion_dist: number;
+  separation_dist: number;
+  alignment_dist: number;
+  cohesion_scale: number;
+  separation_scale: number;
+  alignment_scale: number;
 }
 
 const boidComputeShader = `
@@ -357,12 +329,12 @@ struct Particle {
 
 struct Params {
   deltaT : f32,
-  rule1Distance : f32,
-  rule2Distance : f32,
-  rule3Distance : f32,
-  rule1Scale : f32,
-  rule2Scale : f32,
-  rule3Scale : f32,
+  cohesion_dist : f32,
+  separation_dist : f32,
+  alignment_dist : f32,
+  cohesion_scale : f32,
+  separation_scale : f32,
+  alignment_scale : f32,
 };
 
 @binding(0) @group(0) var<uniform> params : Params;
@@ -395,14 +367,14 @@ fn main(@builtin(global_invocation_id) GlobalInvocationID : vec3<u32>) {
 
     pos = particles[i].pos.xy;
     vel = particles[i].vel.xy;
-    if (distance(pos, vPos) < params.rule1Distance) {
+    if (distance(pos, vPos) < params.cohesion_dist) {
       cMass = cMass + pos;
       cMassCount = cMassCount + 1u;
     }
-    if (distance(pos, vPos) < params.rule2Distance) {
+    if (distance(pos, vPos) < params.separation_dist) {
       colVel = colVel - (pos - vPos);
     }
-    if (distance(pos, vPos) < params.rule3Distance) {
+    if (distance(pos, vPos) < params.alignment_dist) {
       cVel = cVel + vel;
       cVelCount = cVelCount + 1u;
     }
@@ -415,8 +387,8 @@ fn main(@builtin(global_invocation_id) GlobalInvocationID : vec3<u32>) {
     var temp : f32 = f32(cVelCount);
     cVel = cVel / vec2<f32>(temp, temp);
   }
-  vVel = vVel + (cMass * params.rule1Scale) + (colVel * params.rule2Scale) +
-      (cVel * params.rule3Scale);
+  vVel = vVel + (cMass * params.cohesion_scale) + (colVel * params.separation_scale) +
+      (cVel * params.alignment_scale);
 
   // clamp velocity for a more pleasing simulation
   vVel = normalize(vVel) * clamp(length(vVel), 0.0, 0.1);
