@@ -8,7 +8,6 @@ import {
   POSE_CONNECTIONS,
   POSE_LANDMARKS,
 } from "@mediapipe/holistic";
-import { xml } from "d3";
 
 import * as _ from "underscore";
 
