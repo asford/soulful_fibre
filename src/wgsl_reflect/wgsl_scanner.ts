@@ -1,3 +1,5 @@
+// @ts-nocheck
+
 export enum TokenClass {
   token,
   keyword,
@@ -69,7 +71,7 @@ export class TokenTypes {
     sampler_comparison: new TokenType(
       "sampler_comparison",
       TokenClass.keyword,
-      "sampler_comparison"
+      "sampler_comparison",
     ),
     struct: new TokenType("struct", TokenClass.keyword, "struct"),
     texture_1d: new TokenType("texture_1d", TokenClass.keyword, "texture_1d"),
@@ -77,68 +79,68 @@ export class TokenTypes {
     texture_2d_array: new TokenType(
       "texture_2d_array",
       TokenClass.keyword,
-      "texture_2d_array"
+      "texture_2d_array",
     ),
     texture_3d: new TokenType("texture_3d", TokenClass.keyword, "texture_3d"),
     texture_cube: new TokenType(
       "texture_cube",
       TokenClass.keyword,
-      "texture_cube"
+      "texture_cube",
     ),
     texture_cube_array: new TokenType(
       "texture_cube_array",
       TokenClass.keyword,
-      "texture_cube_array"
+      "texture_cube_array",
     ),
     texture_multisampled_2d: new TokenType(
       "texture_multisampled_2d",
       TokenClass.keyword,
-      "texture_multisampled_2d"
+      "texture_multisampled_2d",
     ),
     texture_storage_1d: new TokenType(
       "texture_storage_1d",
       TokenClass.keyword,
-      "texture_storage_1d"
+      "texture_storage_1d",
     ),
     texture_storage_2d: new TokenType(
       "texture_storage_2d",
       TokenClass.keyword,
-      "texture_storage_2d"
+      "texture_storage_2d",
     ),
     texture_storage_2d_array: new TokenType(
       "texture_storage_2d_array",
       TokenClass.keyword,
-      "texture_storage_2d_array"
+      "texture_storage_2d_array",
     ),
     texture_storage_3d: new TokenType(
       "texture_storage_3d",
       TokenClass.keyword,
-      "texture_storage_3d"
+      "texture_storage_3d",
     ),
     texture_depth_2d: new TokenType(
       "texture_depth_2d",
       TokenClass.keyword,
-      "texture_depth_2d"
+      "texture_depth_2d",
     ),
     texture_depth_2d_array: new TokenType(
       "texture_depth_2d_array",
       TokenClass.keyword,
-      "texture_depth_2d_array"
+      "texture_depth_2d_array",
     ),
     texture_depth_cube: new TokenType(
       "texture_depth_cube",
       TokenClass.keyword,
-      "texture_depth_cube"
+      "texture_depth_cube",
     ),
     texture_depth_cube_array: new TokenType(
       "texture_depth_cube_array",
       TokenClass.keyword,
-      "texture_depth_cube_array"
+      "texture_depth_cube_array",
     ),
     texture_depth_multisampled_2d: new TokenType(
       "texture_depth_multisampled_2d",
       TokenClass.keyword,
-      "texture_depth_multisampled_2d"
+      "texture_depth_multisampled_2d",
     ),
     u32: new TokenType("u32", TokenClass.keyword, "u32"),
     vec2: new TokenType("vec2", TokenClass.keyword, "vec2"),
@@ -158,7 +160,7 @@ export class TokenTypes {
     fallthrough: new TokenType(
       "fallthrough",
       TokenClass.keyword,
-      "fallthrough"
+      "fallthrough",
     ),
     false: new TokenType("false", TokenClass.keyword, "false"),
     fn: new TokenType("fn", TokenClass.keyword, "fn"),
@@ -203,7 +205,7 @@ export class TokenTypes {
     rgba8unorm_srgb: new TokenType(
       "rgba8unorm_srgb",
       TokenClass.keyword,
-      "rgba8unorm_srgb"
+      "rgba8unorm_srgb",
     ),
     rgba8snorm: new TokenType("rgba8snorm", TokenClass.keyword, "rgba8snorm"),
     rgba8uint: new TokenType("rgba8uint", TokenClass.keyword, "rgba8uint"),
@@ -212,17 +214,17 @@ export class TokenTypes {
     bgra8unorm_srgb: new TokenType(
       "bgra8unorm_srgb",
       TokenClass.keyword,
-      "bgra8unorm_srgb"
+      "bgra8unorm_srgb",
     ),
     rgb10a2unorm: new TokenType(
       "rgb10a2unorm",
       TokenClass.keyword,
-      "rgb10a2unorm"
+      "rgb10a2unorm",
     ),
     rg11b10float: new TokenType(
       "rg11b10float",
       TokenClass.keyword,
-      "rg11b10float"
+      "rg11b10float",
     ),
     rg32uint: new TokenType("rg32uint", TokenClass.keyword, "rg32uint"),
     rg32sint: new TokenType("rg32sint", TokenClass.keyword, "rg32sint"),
@@ -232,19 +234,19 @@ export class TokenTypes {
     rgba16float: new TokenType(
       "rgba16float",
       TokenClass.keyword,
-      "rgba16float"
+      "rgba16float",
     ),
     rgba32uint: new TokenType("rgba32uint", TokenClass.keyword, "rgba32uint"),
     rgba32sint: new TokenType("rgba32sint", TokenClass.keyword, "rgba32sint"),
     rgba32float: new TokenType(
       "rgba32float",
       TokenClass.keyword,
-      "rgba32float"
+      "rgba32float",
     ),
     static_assert: new TokenType(
       "static_assert",
       TokenClass.keyword,
-      "static_assert"
+      "static_assert",
     ),
 
     // WGSL grammar has a few keywords that have different token names than the strings they
@@ -259,22 +261,22 @@ export class TokenTypes {
     decimal_float_literal: new TokenType(
       "decimal_float_literal",
       TokenClass.token,
-      /((-?[0-9]*\.[0-9]+|-?[0-9]+\.[0-9]*)((e|E)(\+|-)?[0-9]+)?f?)|(-?[0-9]+(e|E)(\+|-)?[0-9]+f?)/
+      /((-?[0-9]*\.[0-9]+|-?[0-9]+\.[0-9]*)((e|E)(\+|-)?[0-9]+)?f?)|(-?[0-9]+(e|E)(\+|-)?[0-9]+f?)/,
     ),
     hex_float_literal: new TokenType(
       "hex_float_literal",
       TokenClass.token,
-      /-?0x((([0-9a-fA-F]*\.[0-9a-fA-F]+|[0-9a-fA-F]+\.[0-9a-fA-F]*)((p|P)(\+|-)?[0-9]+f?)?)|([0-9a-fA-F]+(p|P)(\+|-)?[0-9]+f?))/
+      /-?0x((([0-9a-fA-F]*\.[0-9a-fA-F]+|[0-9a-fA-F]+\.[0-9a-fA-F]*)((p|P)(\+|-)?[0-9]+f?)?)|([0-9a-fA-F]+(p|P)(\+|-)?[0-9]+f?))/,
     ),
     int_literal: new TokenType(
       "int_literal",
       TokenClass.token,
-      /-?0x[0-9a-fA-F]+|0|-?[1-9][0-9]*/
+      /-?0x[0-9a-fA-F]+|0|-?[1-9][0-9]*/,
     ),
     uint_literal: new TokenType(
       "uint_literal",
       TokenClass.token,
-      /0x[0-9a-fA-F]+u|0u|[1-9][0-9]*u/
+      /0x[0-9a-fA-F]+u|0u|[1-9][0-9]*u/,
     ),
     ident: new TokenType("ident", TokenClass.token, /[a-zA-Z][0-9a-zA-Z_]*/),
     and: new TokenType("and", TokenClass.token, "&"),
@@ -298,7 +300,7 @@ export class TokenTypes {
     greater_than_equal: new TokenType(
       "greater_than_equal",
       TokenClass.token,
-      ">="
+      ">=",
     ),
     shift_right: new TokenType("shift_right", TokenClass.token, ">>"),
     less_than: new TokenType("less_than", TokenClass.token, "<"),
@@ -330,12 +332,12 @@ export class TokenTypes {
     shift_right_equal: new TokenType(
       "shift_right_equal",
       TokenClass.token,
-      ">>="
+      ">>=",
     ),
     shift_left_equal: new TokenType(
       "shift_left_equal",
       TokenClass.token,
-      "<<="
+      "<<=",
     ),
   };
 

@@ -1,3 +1,5 @@
+// @ts-nocheck
+
 export class ParseContext {
   constants: Map<string, Const> = new Map();
   aliases: Map<string, Alias> = new Map();
@@ -56,7 +58,7 @@ export class Function extends Statement {
     name: string,
     args: Array<Argument>,
     returnType: Type | null,
-    body: Array<Statement>
+    body: Array<Statement>,
   ) {
     super();
     this.name = name;
@@ -123,7 +125,7 @@ export class For extends Statement {
     init: Statement | null,
     condition: Expression | null,
     increment: Statement | null,
-    body: Array<Statement>
+    body: Array<Statement>,
   ) {
     super();
     this.init = init;
@@ -155,7 +157,7 @@ export class Var extends Statement {
     type: Type | null,
     storage: string | null,
     access: string | null,
-    value: Expression | null
+    value: Expression | null,
   ) {
     super();
     this.name = name;
@@ -188,7 +190,7 @@ export class Let extends Statement {
     type: Type | null,
     storage: string | null,
     access: string | null,
-    value: Expression | null
+    value: Expression | null,
   ) {
     super();
     this.name = name;
@@ -221,7 +223,7 @@ export class Const extends Statement {
     type: Type | null,
     storage: string | null,
     access: string | null,
-    value: Expression
+    value: Expression,
   ) {
     super();
     this.name = name;
@@ -308,7 +310,7 @@ export class Assign extends Statement {
   constructor(
     operator: AssignOperator,
     variable: Expression,
-    value: Expression
+    value: Expression,
   ) {
     super();
     this.operator = operator;
@@ -396,7 +398,7 @@ export class If extends Statement {
     condition: Expression,
     body: Array<Statement>,
     elseif: Array<ElseIf> | null,
-    _else: Array<Statement> | null
+    _else: Array<Statement> | null,
   ) {
     super();
     this.condition = condition;
@@ -593,7 +595,7 @@ export class PointerType extends Type {
     name: string,
     storage: string,
     type: Type | null,
-    access: string | null
+    access: string | null,
   ) {
     super(name);
     this.storage = storage;
@@ -621,7 +623,7 @@ export class ArrayType extends Type {
     name: string,
     attributes: Array<Attribute> | null,
     format: Type | null,
-    count: number
+    count: number,
   ) {
     super(name);
     this.attributes = attributes;
@@ -646,7 +648,7 @@ export class SamplerType extends Type {
   constructor(
     name: string,
     format: Type | string | null,
-    access: string | null
+    access: string | null,
   ) {
     super(name);
     this.format = format;
@@ -753,7 +755,7 @@ export class CallExpr extends Expression {
       case "atan2":
         return Math.atan2(
           this.args[0].evaluate(context),
-          this.args[1].evaluate(context)
+          this.args[1].evaluate(context),
         );
       case "atanh":
         return Math.atanh(this.args[0].evaluate(context));
@@ -763,9 +765,9 @@ export class CallExpr extends Expression {
         return Math.min(
           Math.max(
             this.args[0].evaluate(context),
-            this.args[1].evaluate(context)
+            this.args[1].evaluate(context),
           ),
-          this.args[2].evaluate(context)
+          this.args[2].evaluate(context),
         );
       case "cos":
         return Math.cos(this.args[0].evaluate(context));
@@ -779,8 +781,8 @@ export class CallExpr extends Expression {
         return Math.sqrt(
           Math.pow(
             this.args[0].evaluate(context) - this.args[1].evaluate(context),
-            2
-          )
+            2,
+          ),
         );
       case "dot":
       //TODO: (x[i] * y[i])
@@ -817,12 +819,12 @@ export class CallExpr extends Expression {
       case "max":
         return Math.max(
           this.args[0].evaluate(context),
-          this.args[1].evaluate(context)
+          this.args[1].evaluate(context),
         );
       case "min":
         return Math.min(
           this.args[0].evaluate(context),
-          this.args[1].evaluate(context)
+          this.args[1].evaluate(context),
         );
       case "mix":
         return (
@@ -838,7 +840,7 @@ export class CallExpr extends Expression {
       case "pow":
         return Math.pow(
           this.args[0].evaluate(context),
-          this.args[1].evaluate(context)
+          this.args[1].evaluate(context),
         );
       case "radians":
         return (this.args[0].evaluate(context) * Math.PI) / 180;
@@ -1242,7 +1244,7 @@ export class Member extends Node {
   constructor(
     name: string,
     type: Type | null,
-    attributes: Array<Attribute> | null
+    attributes: Array<Attribute> | null,
   ) {
     super();
     this.name = name;

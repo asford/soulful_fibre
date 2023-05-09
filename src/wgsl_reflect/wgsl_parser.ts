@@ -1,3 +1,5 @@
+// @ts-nocheck
+
 /**
  * @author Brendan Duncan / https://github.com/brendan-duncan
  */
@@ -173,12 +175,12 @@ export class WgslParser {
 
     const name = this._consume(
       TokenTypes.tokens.ident,
-      "Expected function name."
+      "Expected function name.",
     ).toString();
 
     this._consume(
       TokenTypes.tokens.paren_left,
-      "Expected '(' for function arguments."
+      "Expected '(' for function arguments.",
     );
 
     const args: Array<AST.Argument> = [];
@@ -189,12 +191,12 @@ export class WgslParser {
 
         const name = this._consume(
           TokenTypes.tokens.ident,
-          "Expected argument name."
+          "Expected argument name.",
         ).toString();
 
         this._consume(
           TokenTypes.tokens.colon,
-          "Expected ':' for argument type."
+          "Expected ':' for argument type.",
         );
 
         const typeAttrs = this._attribute();
@@ -209,7 +211,7 @@ export class WgslParser {
 
     this._consume(
       TokenTypes.tokens.paren_right,
-      "Expected ')' after function arguments."
+      "Expected ')' after function arguments.",
     );
 
     let _return: AST.Type | null = null;
@@ -300,7 +302,7 @@ export class WgslParser {
     if (result != null)
       this._consume(
         TokenTypes.tokens.semicolon,
-        "Expected ';' after statement."
+        "Expected ';' after statement.",
       );
 
     return result;
@@ -381,14 +383,14 @@ export class WgslParser {
         _var.type,
         _var.storage,
         _var.access,
-        value
+        value,
       );
     }
 
     if (this._match(TokenTypes.keywords.let)) {
       const name = this._consume(
         TokenTypes.tokens.ident,
-        "Expected name for let."
+        "Expected name for let.",
       ).toString();
       let type: AST.Type | null = null;
       if (this._match(TokenTypes.tokens.colon)) {
@@ -404,7 +406,7 @@ export class WgslParser {
     if (this._match(TokenTypes.keywords.const)) {
       const name = this._consume(
         TokenTypes.tokens.ident,
-        "Expected name for const."
+        "Expected name for const.",
       ).toString();
       let type: AST.Type | null = null;
       if (this._match(TokenTypes.tokens.colon)) {
@@ -433,14 +435,14 @@ export class WgslParser {
 
     const token = this._consume(
       TokenTypes.increment_operators,
-      "Expected increment operator"
+      "Expected increment operator",
     );
 
     return new AST.Increment(
       token.type === TokenTypes.tokens.plus_plus
         ? AST.IncrementOperator.increment
         : AST.IncrementOperator.decrement,
-      _var
+      _var,
     );
   }
 
@@ -457,7 +459,7 @@ export class WgslParser {
 
     const type = this._consume(
       TokenTypes.assignment_operators,
-      "Expected assignment operator."
+      "Expected assignment operator.",
     );
 
     const value = this._short_circuit_or_expression();
@@ -465,7 +467,7 @@ export class WgslParser {
     return new AST.Assign(
       AST.AssignOperator.parse(type.lexeme),
       _var as AST.Expression,
-      value
+      value,
     );
   }
 
@@ -476,7 +478,7 @@ export class WgslParser {
     const savedPos = this._current;
     const name = this._consume(
       TokenTypes.tokens.ident,
-      "Expected function name."
+      "Expected function name.",
     );
     const args = this._argument_expression_list();
 
@@ -540,12 +542,12 @@ export class WgslParser {
       this._consume(TokenTypes.tokens.colon, "Exected ':' for switch case.");
       this._consume(
         TokenTypes.tokens.brace_left,
-        "Exected '{' for switch case."
+        "Exected '{' for switch case.",
       );
       const body = this._case_body();
       this._consume(
         TokenTypes.tokens.brace_right,
-        "Exected '}' for switch case."
+        "Exected '}' for switch case.",
       );
       cases.push(new AST.Case(selector, body));
     }
@@ -554,12 +556,12 @@ export class WgslParser {
       this._consume(TokenTypes.tokens.colon, "Exected ':' for switch default.");
       this._consume(
         TokenTypes.tokens.brace_left,
-        "Exected '{' for switch default."
+        "Exected '{' for switch default.",
       );
       const body = this._case_body();
       this._consume(
         TokenTypes.tokens.brace_right,
-        "Exected '}' for switch default."
+        "Exected '}' for switch default.",
       );
       cases.push(new AST.Default(body));
     }
@@ -577,15 +579,15 @@ export class WgslParser {
     const selectors = [
       this._consume(
         TokenTypes.const_literal,
-        "Expected constant literal"
+        "Expected constant literal",
       ).toString(),
     ];
     while (this._match(TokenTypes.tokens.comma)) {
       selectors.push(
         this._consume(
           TokenTypes.const_literal,
-          "Expected constant literal"
-        ).toString()
+          "Expected constant literal",
+        ).toString(),
       );
     }
     return selectors;
@@ -656,7 +658,7 @@ export class WgslParser {
       expr = new AST.BinaryOperator(
         this._previous().toString(),
         expr,
-        this._short_circuit_and_expr()
+        this._short_circuit_and_expr(),
       );
     }
     return expr;
@@ -670,7 +672,7 @@ export class WgslParser {
       expr = new AST.BinaryOperator(
         this._previous().toString(),
         expr,
-        this._inclusive_or_expression()
+        this._inclusive_or_expression(),
       );
     }
     return expr;
@@ -684,7 +686,7 @@ export class WgslParser {
       expr = new AST.BinaryOperator(
         this._previous().toString(),
         expr,
-        this._exclusive_or_expression()
+        this._exclusive_or_expression(),
       );
     }
     return expr;
@@ -698,7 +700,7 @@ export class WgslParser {
       expr = new AST.BinaryOperator(
         this._previous().toString(),
         expr,
-        this._and_expression()
+        this._and_expression(),
       );
     }
     return expr;
@@ -712,7 +714,7 @@ export class WgslParser {
       expr = new AST.BinaryOperator(
         this._previous().toString(),
         expr,
-        this._equality_expression()
+        this._equality_expression(),
       );
     }
     return expr;
@@ -729,7 +731,7 @@ export class WgslParser {
       return new AST.BinaryOperator(
         this._previous().toString(),
         expr,
-        this._relational_expression()
+        this._relational_expression(),
       );
     }
     return expr;
@@ -753,7 +755,7 @@ export class WgslParser {
       expr = new AST.BinaryOperator(
         this._previous().toString(),
         expr,
-        this._shift_expression()
+        this._shift_expression(),
       );
     }
     return expr;
@@ -770,7 +772,7 @@ export class WgslParser {
       expr = new AST.BinaryOperator(
         this._previous().toString(),
         expr,
-        this._additive_expression()
+        this._additive_expression(),
       );
     }
     return expr;
@@ -785,7 +787,7 @@ export class WgslParser {
       expr = new AST.BinaryOperator(
         this._previous().toString(),
         expr,
-        this._multiplicative_expression()
+        this._multiplicative_expression(),
       );
     }
     return expr;
@@ -807,7 +809,7 @@ export class WgslParser {
       expr = new AST.BinaryOperator(
         this._previous().toString(),
         expr,
-        this._unary_expression()
+        this._unary_expression(),
       );
     }
     return expr;
@@ -831,7 +833,7 @@ export class WgslParser {
     ) {
       return new AST.UnaryOperator(
         this._previous().toString(),
-        this._unary_expression()
+        this._unary_expression(),
       );
     }
     return this._singular_expression();
@@ -859,7 +861,7 @@ export class WgslParser {
     if (this._match(TokenTypes.tokens.period)) {
       const name = this._consume(
         TokenTypes.tokens.ident,
-        "Expected member name."
+        "Expected member name.",
       );
       const p = this._postfix_expression();
       const expr = new AST.StringExpr(name.lexeme);
@@ -938,7 +940,7 @@ export class WgslParser {
     } while (this._match(TokenTypes.tokens.comma));
     this._consume(
       TokenTypes.tokens.paren_right,
-      "Expected ')' for agument list"
+      "Expected ')' for agument list",
     );
 
     return args;
@@ -966,13 +968,13 @@ export class WgslParser {
 
     const name = this._consume(
       TokenTypes.tokens.ident,
-      "Expected name for struct."
+      "Expected name for struct.",
     ).toString();
 
     // struct_body_decl: brace_left (struct_member comma)* struct_member comma? brace_right
     this._consume(
       TokenTypes.tokens.brace_left,
-      "Expected '{' for struct body."
+      "Expected '{' for struct body.",
     );
     const members: Array<AST.Member> = [];
     while (!this._check(TokenTypes.tokens.brace_right)) {
@@ -981,12 +983,12 @@ export class WgslParser {
 
       const memberName = this._consume(
         TokenTypes.tokens.ident,
-        "Expected variable name."
+        "Expected variable name.",
       ).toString();
 
       this._consume(
         TokenTypes.tokens.colon,
-        "Expected ':' for struct member type."
+        "Expected ':' for struct member type.",
       );
 
       const typeAttrs = this._attribute();
@@ -996,7 +998,7 @@ export class WgslParser {
       if (!this._check(TokenTypes.tokens.brace_right))
         this._consume(
           TokenTypes.tokens.comma,
-          "Expected ',' for struct member."
+          "Expected ',' for struct member.",
         );
       else this._match(TokenTypes.tokens.comma); // trailing comma optional.
 
@@ -1005,7 +1007,7 @@ export class WgslParser {
 
     this._consume(
       TokenTypes.tokens.brace_right,
-      "Expected '}' after struct body."
+      "Expected '}' after struct body.",
     );
 
     const structNode = new AST.Struct(name, members);
@@ -1027,7 +1029,7 @@ export class WgslParser {
 
     const name = this._consume(
       TokenTypes.tokens.ident,
-      "Expected variable name"
+      "Expected variable name",
     );
     let type: AST.Type | null = null;
     if (this._match(TokenTypes.tokens.colon)) {
@@ -1061,7 +1063,7 @@ export class WgslParser {
 
     const name = this._consume(
       TokenTypes.tokens.ident,
-      "Expected variable name"
+      "Expected variable name",
     );
     let type: AST.Type | null = null;
     if (this._match(TokenTypes.tokens.colon)) {
@@ -1108,19 +1110,19 @@ export class WgslParser {
     if (this._match(TokenTypes.tokens.less_than)) {
       storage = this._consume(
         TokenTypes.storage_class,
-        "Expected storage_class."
+        "Expected storage_class.",
       ).toString();
       if (this._match(TokenTypes.tokens.comma))
         access = this._consume(
           TokenTypes.access_mode,
-          "Expected access_mode."
+          "Expected access_mode.",
         ).toString();
       this._consume(TokenTypes.tokens.greater_than, "Expected '>'.");
     }
 
     const name = this._consume(
       TokenTypes.tokens.ident,
-      "Expected variable name"
+      "Expected variable name",
     );
     let type: AST.Type | null = null;
     if (this._match(TokenTypes.tokens.colon)) {
@@ -1204,7 +1206,7 @@ export class WgslParser {
         if (this._match(TokenTypes.tokens.comma))
           access = this._consume(
             TokenTypes.access_mode,
-            "Expected access_mode for pointer"
+            "Expected access_mode for pointer",
           ).toString();
         this._consume(TokenTypes.tokens.greater_than, "Expected '>' for type.");
       }
@@ -1217,7 +1219,7 @@ export class WgslParser {
       this._consume(TokenTypes.tokens.less_than, "Expected '<' for pointer.");
       const storage = this._consume(
         TokenTypes.storage_class,
-        "Expected storage_class for pointer"
+        "Expected storage_class for pointer",
       );
       this._consume(TokenTypes.tokens.comma, "Expected ',' for pointer.");
       const decl = this._type_decl();
@@ -1225,11 +1227,11 @@ export class WgslParser {
       if (this._match(TokenTypes.tokens.comma))
         access = this._consume(
           TokenTypes.access_mode,
-          "Expected access_mode for pointer"
+          "Expected access_mode for pointer",
         ).toString();
       this._consume(
         TokenTypes.tokens.greater_than,
-        "Expected '>' for pointer."
+        "Expected '>' for pointer.",
       );
       return new AST.PointerType(pointer, storage.toString(), decl, access);
     }
@@ -1246,7 +1248,7 @@ export class WgslParser {
       const array = this._previous();
       this._consume(
         TokenTypes.tokens.less_than,
-        "Expected '<' for array type."
+        "Expected '<' for array type.",
       );
       let format = this._type_decl();
       if (this._context.aliases.has(format.name)) {
@@ -1283,12 +1285,12 @@ export class WgslParser {
       const sampler = this._previous();
       this._consume(
         TokenTypes.tokens.less_than,
-        "Expected '<' for sampler type."
+        "Expected '<' for sampler type.",
       );
       const format = this._type_decl();
       this._consume(
         TokenTypes.tokens.greater_than,
-        "Expected '>' for sampler type."
+        "Expected '>' for sampler type.",
       );
       return new AST.SamplerType(sampler.toString(), format, null);
     }
@@ -1298,23 +1300,23 @@ export class WgslParser {
       const sampler = this._previous();
       this._consume(
         TokenTypes.tokens.less_than,
-        "Expected '<' for sampler type."
+        "Expected '<' for sampler type.",
       );
       const format = this._consume(
         TokenTypes.texel_format,
-        "Invalid texel format."
+        "Invalid texel format.",
       ).toString();
       this._consume(
         TokenTypes.tokens.comma,
-        "Expected ',' after texel format."
+        "Expected ',' after texel format.",
       );
       const access = this._consume(
         TokenTypes.access_mode,
-        "Expected access mode for storage texture type."
+        "Expected access mode for storage texture type.",
       ).toString();
       this._consume(
         TokenTypes.tokens.greater_than,
-        "Expected '>' for sampler type."
+        "Expected '>' for sampler type.",
       );
       return new AST.SamplerType(sampler.toString(), format, access);
     }
@@ -1331,21 +1333,21 @@ export class WgslParser {
     while (this._match(TokenTypes.tokens.attr)) {
       const name = this._consume(
         TokenTypes.attribute_name,
-        "Expected attribute name"
+        "Expected attribute name",
       );
       const attr = new AST.Attribute(name.toString(), null);
       if (this._match(TokenTypes.tokens.paren_left)) {
         // literal_or_ident
         attr.value = this._consume(
           TokenTypes.literal_or_ident,
-          "Expected attribute value"
+          "Expected attribute value",
         ).toString();
         if (this._check(TokenTypes.tokens.comma)) {
           this._advance();
           do {
             const v = this._consume(
               TokenTypes.literal_or_ident,
-              "Expected attribute value"
+              "Expected attribute value",
             ).toString();
             if (!(attr.value instanceof Array)) {
               attr.value = [attr.value as string];
@@ -1365,7 +1367,7 @@ export class WgslParser {
         do {
           const name = this._consume(
             TokenTypes.attribute_name,
-            "Expected attribute name"
+            "Expected attribute name",
           );
           const attr = new AST.Attribute(name.toString(), null);
           if (this._match(TokenTypes.tokens.paren_left)) {
@@ -1373,7 +1375,7 @@ export class WgslParser {
             attr.value = [
               this._consume(
                 TokenTypes.literal_or_ident,
-                "Expected attribute value"
+                "Expected attribute value",
               ).toString(),
             ];
             if (this._check(TokenTypes.tokens.comma)) {
@@ -1381,7 +1383,7 @@ export class WgslParser {
               do {
                 const v = this._consume(
                   TokenTypes.literal_or_ident,
-                  "Expected attribute value"
+                  "Expected attribute value",
                 ).toString();
                 attr.value.push(v);
               } while (this._match(TokenTypes.tokens.comma));
@@ -1394,7 +1396,7 @@ export class WgslParser {
       // Consume ]]
       this._consume(
         TokenTypes.tokens.attr_right,
-        "Expected ']]' after attribute declarations"
+        "Expected ']]' after attribute declarations",
       );
     }
 

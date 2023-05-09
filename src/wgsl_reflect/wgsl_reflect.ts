@@ -1,3 +1,5 @@
+// @ts-nocheck
+
 /**
  * @author Brendan Duncan / https://github.com/brendan-duncan
  */
@@ -67,7 +69,7 @@ export class InputInfo {
     type: AST.Type | null,
     input: AST.Node,
     locationType: string,
-    location: number | string
+    location: number | string,
   ) {
     this.name = name;
     this.type = type;
@@ -285,7 +287,7 @@ export class WgslReflect {
 
   _getInputs(
     args: Array<AST.Argument>,
-    inputs: Array<InputInfo> | undefined = undefined
+    inputs: Array<InputInfo> | undefined = undefined,
   ): Array<InputInfo> {
     if (inputs === undefined) inputs = [];
 
@@ -309,7 +311,7 @@ export class WgslReflect {
         node.type,
         node,
         location.name,
-        this._parseInt(location.value)
+        this._parseInt(location.value),
       );
       if (interpolation !== null) {
         info.interpolation = this._parseString(interpolation.value);
@@ -384,7 +386,7 @@ export class WgslReflect {
       const group = groups[u.group];
       group[u.binding] = new BindGropEntry(
         "buffer",
-        this.getUniformBufferInfo(u)
+        this.getUniformBufferInfo(u),
       );
     }
 
@@ -393,7 +395,7 @@ export class WgslReflect {
       const group = groups[u.group];
       group[u.binding] = new BindGropEntry(
         "storage",
-        this.getStorageBufferInfo(u)
+        this.getStorageBufferInfo(u),
       );
     }
 
@@ -413,7 +415,7 @@ export class WgslReflect {
   }
 
   getStorageBufferInfo(
-    node: VariableInfo | AST.Struct | AST.Var
+    node: VariableInfo | AST.Struct | AST.Var,
   ): BufferInfo | null {
     if (node instanceof VariableInfo) {
       node = node.node;
@@ -445,7 +447,7 @@ export class WgslReflect {
     let structAlign = 0;
     let buffer = new BufferInfo(
       node.name,
-      node instanceof AST.Var ? node.type : null
+      node instanceof AST.Var ? node.type : null,
     );
     buffer.members = [];
 
@@ -541,8 +543,6 @@ export class WgslReflect {
     return info;
   }
 
-
-
   getTypeInfo(type: AST.Type | null | undefined): TypeInfo | null {
     if (type === null || type === undefined) return null;
 
@@ -566,7 +566,7 @@ export class WgslReflect {
         const divisor = type["format"] === "f16" ? 2 : 1;
         return new TypeInfo(
           Math.max(explicitAlign, info.align / divisor),
-          Math.max(explicitSize, info.size / divisor)
+          Math.max(explicitSize, info.size / divisor),
         );
       }
     }
@@ -578,7 +578,7 @@ export class WgslReflect {
         const divisor = type.name[type.name.length - 1] === "h" ? 2 : 1;
         return new TypeInfo(
           Math.max(explicitAlign, info.align / divisor),
-          Math.max(explicitSize, info.size / divisor)
+          Math.max(explicitSize, info.size / divisor),
         );
       }
     }
@@ -607,7 +607,7 @@ export class WgslReflect {
       const stride = this.getAttributeNum(
         type,
         "stride",
-        this._roundUp(align, size)
+        this._roundUp(align, size),
       );
       size = N * stride;
 
@@ -615,7 +615,7 @@ export class WgslReflect {
 
       return new TypeInfo(
         Math.max(explicitAlign, align),
-        Math.max(explicitSize, size)
+        Math.max(explicitSize, size),
       );
     }
 
@@ -639,7 +639,7 @@ export class WgslReflect {
 
       return new TypeInfo(
         Math.max(explicitAlign, align),
-        Math.max(explicitSize, size)
+        Math.max(explicitSize, size),
       );
     }
 
