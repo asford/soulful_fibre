@@ -30,32 +30,65 @@ import * as d3 from "d3";
 
 import glowboid_compute from "./glowboid_compute.wgsl";
 
-export function App() {
-  const defaults: {
-    params: Params;
-    boid_opts: BoidOpts;
-    glows: { intensity: number; blurKernelSize: number }[];
-  } = {
-    params: {
-      delta_t: 0.05,
-      cohesion_dist: 0.15,
-      separation_dist: 0.025,
-      alignment_dist: 0.025,
-      cohesion_scale: 0.4,
-      separation_scale: 1,
-      alignment_scale: 0.1,
-      attract_dist: 0.0,
-      attract_scale: 0.1,
-    },
-    boid_opts: { init_scale: 0.01, size_median: 0.2, size_range: 0.05 },
-    glows: [
-      { intensity: 2, blurKernelSize: 8 },
-      { intensity: 1, blurKernelSize: 32 },
-      { intensity: 2, blurKernelSize: 64 },
-      { intensity: 2, blurKernelSize: 128 },
-    ],
-  };
+interface Particle extends BufferableStruct {
+  pos: vec2;
+  vel: vec2;
+  color: col4;
+  scale: number;
+  pad1: number;
+  pad2: number;
+  pad3: number;
+}
 
+interface ParticleParams extends BufferableStruct {
+  attractor: vec2;
+}
+
+interface Params extends BufferableStruct {
+  delta_t: number;
+  cohesion_dist: number;
+  separation_dist: number;
+  alignment_dist: number;
+  cohesion_scale: number;
+  separation_scale: number;
+  alignment_scale: number;
+  attract_dist: number;
+  attract_scale: number;
+}
+
+const null_particle = {
+  pos: new vec2(),
+  vel: new vec2(),
+  color: new col4(),
+  scale: 1.0,
+  pad1: 0.0,
+  pad2: 0.0,
+  pad3: 0.0,
+};
+
+const null_particle_params = {
+  attractor: new vec2(),
+};
+
+const default_params = {
+  delta_t: 0.05,
+  cohesion_dist: 0.15,
+  separation_dist: 0.025,
+  alignment_dist: 0.025,
+  cohesion_scale: 0.4,
+  separation_scale: 1,
+  alignment_scale: 0.1,
+  attract_dist: 0.0,
+  attract_scale: 0.1,
+};
+
+const default_opts = {
+  init_scale: 0.01,
+  size_median: 0.2,
+  size_range: 0.05,
+};
+
+export function App() {
   const params_opts = {
     delta_t: [-0.05, 0.15],
     cohesion_dist: [0, 0.5, 0.005],
@@ -69,89 +102,79 @@ export function App() {
     attract_scale: [-0.5, 0.5, 0.001],
   };
 
-  const opts = useRef(_.cloneDeep(defaults));
-  const boids = useRef<Boid>(null!);
+  const opts = useRef(_.cloneDeep(default_opts));
+  const boids = useRef<Boid<Params, Particle, ParticleParams>>(null!);
   const gui = useRef<GUI>(null!);
+
   const pointer_ndc = useRef({
     x: 0,
     y: 0,
   });
 
-  const onSceneReady = (scene: Scene) => {
-    const engine = scene.getEngine();
-    scene.clearColor = BABYLON.Color3.Black().toColor4(1.0);
-
-    var camera = new BABYLON.ArcRotateCamera(
-      "camera",
-      -Math.PI / 2,
-      Math.PI / 2,
-      10,
-      BABYLON.Vector3.Zero(),
-      scene,
+  const init_particles = () => {
+    const part = boids.current.particle_buffer.get(0);
+    const unit = d3.randomUniform(-1, 1);
+    const scale = d3.randomUniform(
+      opts.current.size_median - opts.current.size_range,
+      opts.current.size_median + opts.current.size_range,
     );
 
-    camera.setTarget(BABYLON.Vector3.Zero());
+    for (let i = 0; i < boids.current.num_particles; ++i) {
+      // Compress into small space for "explosive start"
+      part.pos.x = unit() * opts.current.init_scale;
+      part.pos.y = unit() * opts.current.init_scale;
 
-    if (!scene.getEngine().getCaps().supportComputeShaders) {
-      const engine = scene.getEngine();
-      console.error("Compute shaders not supported.", engine, engine.getCaps());
-      throw Error("Scene does not support compute shaders.");
+      part.vel.x = unit() * 0.1;
+      part.vel.y = unit() * 0.1;
+
+      const color = new THREE.Color();
+      color.setHSL((i / boids.current.num_particles) * 360.0, 0.6, 0.5);
+      part.color.r = color.r;
+      part.color.g = color.g;
+      part.color.b = color.b;
+      part.color.a = 1.0;
+
+      part.scale = scale();
+
+      boids.current.particle_buffer.set(i, part);
     }
 
+    boids.current.particle_buffer.update();
+  };
+
+  const onSceneReady = (scene: Scene) => {
+    boids.current = new Boid(
+      scene,
+      4000,
+      glowboid_compute,
+      default_params,
+      null_particle,
+      null_particle_params,
+    );
+
     gui.current = init_gui();
-    add_folder(gui.current, "params", opts.current.params, params_opts).open();
-    add_folder(gui.current, "boid_opts", opts.current.boid_opts, params_opts);
+    add_folder(gui.current, "params", boids.current.params, params_opts).open();
     add_folder(gui.current, "pointer_ndc", pointer_ndc.current, {
       x: [-1, 1, 0.001],
       y: [-1, 1, 0.001],
     });
 
-    boids.current = new Boid(
-      scene,
-      4000,
-      opts.current.params,
-      opts.current.boid_opts,
-    );
-
     const glow_folder = gui.current.addFolder("glow");
-    function attach_glow_pipeline(
-      name: string,
-      params: {
-        intensity: number;
-        blurKernelSize: number;
-      },
-    ) {
-      var gl = new BABYLON.GlowLayer("glow", scene);
-
-      _.merge(gl, params);
-      gl.addIncludedOnlyMesh(boids.current.mesh);
-      // set up material to use glow layer
-      gl.referenceMeshToUseItsOwnMaterial(boids.current.mesh);
-
+    _.each(boids.current.glows, (glow) => {
+      console.log(glow.name);
       add_folder(
         glow_folder,
-        name,
-        gl,
+        glow.name,
+        glow,
         {
           intensity: [0.0, 3, 0.1],
           blurKernelSize: [0.0, 256, 1],
         },
         true,
       ).open();
-    }
-
-    // Not using bloom pipeline, which relies on intensity masking.
-    // This means stacked bloom layers over-add each other.
-    // Instead configure glow layer directly from the source mesh color.
-    // attach_bloom_pipeline("bloom0", 2.2, 12, 0.01);
-    // attach_bloom_pipeline("bloom1", 1, 160, 0.01);
-
-    // Semi-simulate the unreal bloom effect via stacked glows
-    _.each(opts.current.glows, (params, idx) => {
-      attach_glow_pipeline(`glow_${idx}`, params);
     });
 
-    gui.current.add(boids.current, "init_particles");
+    gui.current.add({ init_particles: init_particles }, "init_particles");
   };
 
   const onRender = (scene: Scene) => {
@@ -192,82 +215,69 @@ export function App() {
   );
 }
 
-interface BoidOpts {
-  init_scale: number;
-  size_median: number;
-  size_range: number;
+interface GlowOpts {
+  intensity: number;
+  blurKernelSize: number;
 }
 
-interface Particle extends BufferableStruct {
-  pos: vec2;
-  vel: vec2;
-  color: col4;
-  scale: number;
-  pad1: number;
-  pad2: number;
-  pad3: number;
-}
-
-const null_particle: Particle = {
-  pos: new vec2(),
-  vel: new vec2(),
-  color: new col4(),
-  scale: 1.0,
-  pad1: 0.0,
-  pad2: 0.0,
-  pad3: 0.0,
-};
-
-interface ParticleParam extends BufferableStruct {
-  attractor: vec2;
-}
-
-const null_particle_param: ParticleParam = {
-  attractor: new vec2(),
-};
-
-interface Params extends BufferableStruct {
-  delta_t: number;
-  cohesion_dist: number;
-  separation_dist: number;
-  alignment_dist: number;
-  cohesion_scale: number;
-  separation_scale: number;
-  alignment_scale: number;
-
-  attract_dist: number;
-  attract_scale: number;
-}
-
-class Boid {
-  params_buffer: UniformAdapter<Params>;
-  particle_buffer: StorageAdapter<Particle>;
-  particle_param_buffer: StorageAdapter<ParticleParam>;
+class Boid<
+  ParamT extends BufferableStruct,
+  ParticleT extends BufferableStruct,
+  ParticleParamT extends BufferableStruct,
+> {
+  params_buffer: UniformAdapter<ParamT>;
+  particle_buffer: StorageAdapter<ParticleT>;
+  particle_param_buffer: StorageAdapter<ParticleParamT>;
   cs: BABYLON.ComputeShader;
   mesh: BABYLON.Mesh;
+  glows: BABYLON.GlowLayer[];
 
   constructor(
     scene: Scene,
     public num_particles: number,
-    public params: Params,
-    public opts: BoidOpts,
+    public compute_shader: string,
+    public params: ParamT,
+    public empty_particle: ParticleT,
+    public empty_particle_params: ParticleParamT,
+    public glow_opts: GlowOpts[] = [
+      { intensity: 2, blurKernelSize: 8 },
+      { intensity: 1, blurKernelSize: 32 },
+      { intensity: 2, blurKernelSize: 64 },
+      { intensity: 2, blurKernelSize: 128 },
+    ],
   ) {
     const engine = scene.getEngine();
 
-    this.num_particles = num_particles;
+    if (!engine.getCaps().supportComputeShaders) {
+      console.error("Compute shaders not supported.", engine, engine.getCaps());
+      throw Error("Scene does not support compute shaders.");
+    }
+
+    // Initialize scene and camera. Boids render in arbitrary NDC space, ignoring camera.
+    var camera = new BABYLON.ArcRotateCamera(
+      "camera",
+      -Math.PI / 2,
+      Math.PI / 2,
+      10,
+      BABYLON.Vector3.Zero(),
+      scene,
+    );
+    camera.setTarget(BABYLON.Vector3.Zero());
+
+    scene.clearColor = BABYLON.Color3.Black().toColor4(1.0);
 
     // Create uniform / storage / vertex buffers
     this.params = params;
     this.params_buffer = new UniformAdapter(this.params, engine, "params");
 
     this.particle_buffer = new StorageAdapter(
-      null_particle,
+      empty_particle,
       num_particles,
       engine,
       "a_particle_",
     );
     this.particle_param_buffer = new StorageAdapter(
-      null_particle_param,
+      empty_particle_params,
       num_particles,
       engine,
       "a_particle_param_",
@@ -327,8 +337,6 @@ class Boid {
 
     this.mesh.material = mat;
 
-    this.init_particles();
-
     this.cs = create_compute_shader(
       engine,
       "glowboid_compute",
@@ -341,42 +349,25 @@ class Boid {
       "particle_params",
       this.particle_param_buffer.storage_buffer,
     );
+
+    // Not using bloom pipeline, which relies on intensity masking.
+    // This means stacked bloom layers over-add each other.
+    // Instead configure glow layer directly from the source mesh color.
+    // Semi-simulate the unreal bloom effect via stacked glows
+    this.glows = _.map(this.glow_opts, (params, idx) => {
+      var gl = new BABYLON.GlowLayer(`glow_${idx}`, scene);
+
+      _.merge(gl, params);
+      // set up material to use glow layer
+      gl.addIncludedOnlyMesh(this.mesh);
+      gl.referenceMeshToUseItsOwnMaterial(this.mesh);
+      return gl;
+    });
   }
 
   dispose() {
     this.params_buffer.buffer.dispose();
     this.particle_buffer.storage_buffer.dispose();
-  }
-
-  init_particles() {
-    const part = this.particle_buffer.get(0);
-    const unit = d3.randomUniform(-1, 1);
-    const scale = d3.randomUniform(
-      this.opts.size_median - this.opts.size_range,
-      this.opts.size_median + this.opts.size_range,
-    );
-
-    for (let i = 0; i < this.num_particles; ++i) {
-      // Compress into small space for "explosive start"
-      part.pos.x = unit() * this.opts.init_scale;
-      part.pos.y = unit() * this.opts.init_scale;
-
-      part.vel.x = unit() * 0.1;
-      part.vel.y = unit() * 0.1;
-
-      const color = new THREE.Color();
-      color.setHSL((i / this.num_particles) * 360.0, 0.6, 0.5);
-      part.color.r = color.r;
-      part.color.g = color.g;
-      part.color.b = color.b;
-      part.color.a = 1.0;
-
-      part.scale = scale();
-
-      this.particle_buffer.set(i, part);
-    }
-
-    this.particle_buffer.update();
   }
 
   _step: number = 0;

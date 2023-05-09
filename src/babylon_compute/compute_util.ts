@@ -240,6 +240,7 @@ export class UniformAdapter<V extends BufferableStruct> {
   }
 }
 
+// TODO Could also infer buffer meta layout from type info and verify here.
 export function create_compute_shader(
   engine: BABYLON.Engine,
   name: string,
@@ -247,6 +248,7 @@ export function create_compute_shader(
   opts: Partial<BABYLON.IComputeShaderOptions> = {},
 ) {
   const reflect = new WgslReflect(source);
+  console.log("create_compute_shader", source, reflect);
   opts = _.merge(opts, {
     bindingsMapping: _.fromPairs(
       _.map(_.concat(reflect.uniforms, reflect.storage), (entry) => [
