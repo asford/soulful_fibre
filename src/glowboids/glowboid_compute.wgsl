@@ -2,14 +2,17 @@ struct Particle {
   pos : vec2<f32>,
   vel : vec2<f32>,
   color : vec4<f32>,
-  scale: f32,
+  size: f32,
   pad1: f32,
   pad2: f32,
   pad3: f32,
 };
 
 struct ParticleParams {
+  color : vec4<f32>,
   attractor: vec2<f32>,
+  size: f32,
+  pad1: f32,
 };
 
 struct Params {
@@ -20,9 +23,11 @@ struct Params {
   cohesion_scale : f32,
   separation_scale : f32,
   alignment_scale : f32,
-
   attract_dist: f32,
   attract_scale: f32,
+
+  size_factor: f32,
+  color_factor: f32,
 };
 
 @binding(0) @group(0) var<uniform> params : Params;
@@ -119,4 +124,6 @@ fn main(@builtin(global_invocation_id) GlobalInvocationID : vec3<u32>) {
   // Write back
   particles[index].pos = pos;
   particles[index].vel = vel;
+  particles[index].size = p_params.size * params.size_factor;
+  particles[index].color = p_params.color * params.color_factor;
 }

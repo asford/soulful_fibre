@@ -1,6 +1,5 @@
 import * as BABYLON from "@babylonjs/core";
 import * as _ from "lodash";
-import ndarray from "ndarray";
 
 import { WgslReflect } from "../wgsl_reflect/wgsl_reflect";
 
@@ -121,7 +120,6 @@ export class StorageAdapter<V extends BufferableStruct> {
   size: number;
 
   source_buffer: Float32Array;
-  field_views: { [K in keyof V]: ndarray.NdArray };
 
   storage_buffer: BABYLON.StorageBuffer;
   vertex_buffers: BABYLON.VertexBuffer[];
@@ -139,19 +137,6 @@ export class StorageAdapter<V extends BufferableStruct> {
     // and setup associated field views.
     this.source_buffer = new Float32Array(size * this.meta.record_size);
 
-    // @ts-expect-error
-    this.field_views = {};
-    _.each(this.meta.fields, (field) => {
-      const view = ndarray(
-        this.source_buffer,
-        [this.size, field.size],
-        [this.meta.record_size, 1],
-        field.offset,
-      );
-
-      // @ts-expect-error
-      this.field_views[field.name] = view;
-    });
     _.each(_.range(this.size), (idx) => this.set(idx, proto));
 
     this.storage_buffer = new BABYLON.StorageBuffer(
