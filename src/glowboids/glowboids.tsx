@@ -198,6 +198,47 @@ interface BoidOpts {
   size_range: number;
 }
 
+interface Particle extends BufferableStruct {
+  pos: vec2;
+  vel: vec2;
+  color: col4;
+  scale: number;
+  pad1: number;
+  pad2: number;
+  pad3: number;
+}
+
+const null_particle: Particle = {
+  pos: new vec2(),
+  vel: new vec2(),
+  color: new col4(),
+  scale: 1.0,
+  pad1: 0.0,
+  pad2: 0.0,
+  pad3: 0.0,
+};
+
+interface ParticleParam extends BufferableStruct {
+  attractor: vec2;
+}
+
+const null_particle_param: ParticleParam = {
+  attractor: new vec2(),
+};
+
+interface Params extends BufferableStruct {
+  deltaT: number;
+  cohesion_dist: number;
+  separation_dist: number;
+  alignment_dist: number;
+  cohesion_scale: number;
+  separation_scale: number;
+  alignment_scale: number;
+
+  attract_dist: number;
+  attract_scale: number;
+}
+
 class Boid {
   params_buffer: UniformAdapter<Params>;
   particle_buffer: StorageAdapter<Particle>;
@@ -253,6 +294,16 @@ class Boid {
       ),
     );
 
+    // Bind both the particle state and particle parameters as vertex buffer attributes.
+    // They are then available by name as attributes in the vertex shader.
+    _.each(this.particle_buffer.vertex_buffers, (vertex_buffer) => {
+      this.mesh.setVerticesBuffer(vertex_buffer, false);
+    });
+
+    _.each(this.particle_param_buffer.vertex_buffers, (vertex_buffer) => {
+      this.mesh.setVerticesBuffer(vertex_buffer, false);
+    });
+
     // Material
     // https://www.youtube.com/watch?v=5ZuM-WLqEPQ
     const mat = new BABYLON.ShaderMaterial(
@@ -263,21 +314,18 @@ class Boid {
         fragmentSource: boid_fragment_shader,
       },
       {
-        attributes: [
-          "a_pos",
-          "a_particle_pos",
-          "a_particle_vel",
-          "a_particle_color",
-          "a_particle_scale",
-        ],
+        attributes: _.concat(
+          ["a_pos"],
+          _.map(this.particle_buffer.vertex_buffers, (vb) => vb.getKind()),
+          _.map(this.particle_param_buffer.vertex_buffers, (vb) =>
+            vb.getKind(),
+          ),
+        ),
       },
     );
     mat.alpha = 0.9;
 
     this.mesh.material = mat;
-    _.each(this.particle_buffer.vertex_buffers, (vertex_buffer) => {
-      this.mesh.setVerticesBuffer(vertex_buffer, false);
-    });
 
     this.init_particles();
 
@@ -367,44 +415,3 @@ const boid_fragment_shader = `
         gl_FragColor = frag_color;
     }
 `;
-
-interface Particle extends BufferableStruct {
-  pos: vec2;
-  vel: vec2;
-  color: col4;
-  scale: number;
-  pad1: number;
-  pad2: number;
-  pad3: number;
-}
-
-const null_particle: Particle = {
-  pos: new vec2(),
-  vel: new vec2(),
-  color: new col4(),
-  scale: 1.0,
-  pad1: 0.0,
-  pad2: 0.0,
-  pad3: 0.0,
-};
-
-interface ParticleParam extends BufferableStruct {
-  attractor: vec2;
-}
-
-const null_particle_param: ParticleParam = {
-  attractor: new vec2(),
-};
-
-interface Params extends BufferableStruct {
-  deltaT: number;
-  cohesion_dist: number;
-  separation_dist: number;
-  alignment_dist: number;
-  cohesion_scale: number;
-  separation_scale: number;
-  alignment_scale: number;
-
-  attract_dist: number;
-  attract_scale: number;
-}
