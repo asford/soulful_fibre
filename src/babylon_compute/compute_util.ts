@@ -2,6 +2,8 @@ import * as BABYLON from "@babylonjs/core";
 import * as _ from "lodash";
 import ndarray from "ndarray";
 
+import { WgslReflect } from "../wgsl_reflect/wgsl_reflect";
+
 function is_any(v: any, types: any[]): boolean {
   return _.some(
     _.map(types, (t) => {
@@ -236,4 +238,28 @@ export class UniformAdapter<V extends BufferableStruct> {
 
     this.buffer.update();
   }
+}
+
+export function create_compute_shader(
+  engine: BABYLON.Engine,
+  name: string,
+  source: string,
+  opts: Partial<BABYLON.IComputeShaderOptions> = {},
+) {
+  const reflect = new WgslReflect(source);
+  opts = _.merge(opts, {
+    bindingsMapping: _.fromPairs(
+      _.map(_.concat(reflect.uniforms, reflect.storage), (entry) => [
+        entry.name,
+        { group: entry.group, binding: entry.binding },
+      ]),
+    ),
+  });
+
+  return new BABYLON.ComputeShader(
+    name,
+    engine,
+    { computeSource: source },
+    opts,
+  );
 }

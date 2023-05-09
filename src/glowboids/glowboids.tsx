@@ -13,6 +13,7 @@ import {
   UniformAdapter,
   StorageAdapter,
   BufferableStruct,
+  create_compute_shader,
 } from "../babylon_compute/compute_util";
 
 import { init_gui, add_folder } from "../babylon_compute/gui_utils";
@@ -26,6 +27,8 @@ import {
 } from "@babylonjs/core";
 
 import * as d3 from "d3";
+
+import glowboid_compute from "./glowboid_compute.wgsl";
 
 export function App() {
   const defaults: {
@@ -41,6 +44,8 @@ export function App() {
       cohesion_scale: 0.02,
       separation_scale: 0.05,
       alignment_scale: 0.005,
+      attract_dist: 0.0,
+      attract_scale: 0.005,
     },
     boid_opts: { init_scale: 0.01, size_median: 0.2, size_range: 0.05 },
     glows: [
@@ -59,11 +64,18 @@ export function App() {
     cohesion_scale: [-0.1, 0.5, 0.01],
     separation_scale: [-0.1, 0.5, 0.01],
     alignment_scale: [-0.01, 0.05, 0.001],
+
+    attract_dist: [0, 0.5, 0.005],
+    attract_scale: [-0.01, 0.05, 0.001],
   };
 
   const opts = useRef(_.cloneDeep(defaults));
   const boids = useRef<Boid>(null!);
   const gui = useRef<GUI>(null!);
+  const pointer_ndc = useRef({
+    x: 0,
+    y: 0,
+  });
 
   const onSceneReady = (scene: Scene) => {
     const engine = scene.getEngine();
@@ -89,6 +101,10 @@ export function App() {
     gui.current = init_gui();
     add_folder(gui.current, "params", opts.current.params, params_opts).open();
     add_folder(gui.current, "boid_opts", opts.current.boid_opts, params_opts);
+    add_folder(gui.current, "pointer_ndc", pointer_ndc.current, {
+      x: [-1, 1, 0.001],
+      y: [-1, 1, 0.001],
+    });
 
     boids.current = new Boid(
       scene,
@@ -97,45 +113,7 @@ export function App() {
       opts.current.boid_opts,
     );
 
-    function attach_bloom_pipeline(
-      name: string,
-      weight: number,
-      kernel: number,
-      threshold: number,
-    ) {
-      const bloom = new BABYLON.BloomEffect(scene, 1, 0, 0);
-      bloom.weight = weight;
-      bloom.kernel = kernel;
-      bloom.threshold = threshold;
-
-      var standardPipeline = new BABYLON.PostProcessRenderPipeline(
-        engine,
-        `${name}_pipeline`,
-      );
-      standardPipeline.addEffect(bloom);
-
-      // Add pipeline to the scene's manager and attach to the camera
-      scene.postProcessRenderPipelineManager.addPipeline(standardPipeline);
-      scene.postProcessRenderPipelineManager.attachCamerasToRenderPipeline(
-        `${name}_pipeline`,
-        camera,
-      );
-
-      add_folder(
-        gui.current,
-        name,
-        bloom,
-        {
-          threshold: [0.0, 1.0, 0.001],
-          weight: [0.0, 8, 0.1],
-          kernel: [0.0, 256, 1],
-        },
-        true,
-      );
-
-      return bloom;
-    }
-
+    const glow_folder = gui.current.addFolder("glow");
     function attach_glow_pipeline(
       name: string,
       params: {
@@ -144,13 +122,14 @@ export function App() {
       },
     ) {
       var gl = new BABYLON.GlowLayer("glow", scene);
+
       _.merge(gl, params);
       gl.addIncludedOnlyMesh(boids.current.mesh);
       // set up material to use glow layer
       gl.referenceMeshToUseItsOwnMaterial(boids.current.mesh);
 
       add_folder(
-        gui.current,
+        glow_folder,
         name,
         gl,
         {
@@ -158,7 +137,7 @@ export function App() {
           blurKernelSize: [0.0, 256, 1],
         },
         true,
-      );
+      ).open();
     }
 
     // Not using bloom pipeline, which relies on intensity masking.
@@ -176,6 +155,20 @@ export function App() {
   };
 
   const onRender = (scene: Scene) => {
+    const pcoord = new vec2(scene.pointerX, scene.pointerY);
+    const screen = new vec2(
+      scene.getEngine().getRenderWidth(),
+      scene.getEngine().getRenderHeight(),
+    );
+    const ndc = pcoord
+      .divide(screen)
+      .subtract(new vec2(0.5, 0.5))
+      .multiply(new vec2(2.0, 2.0));
+
+    _.merge(pointer_ndc.current, ndc);
+
+    scene.getEngine().getRenderHeight();
+
     boids.current.step();
   };
 
@@ -208,6 +201,7 @@ interface BoidOpts {
 class Boid {
   params_buffer: UniformAdapter<Params>;
   particle_buffer: StorageAdapter<Particle>;
+  particle_param_buffer: StorageAdapter<ParticleParam>;
   cs: BABYLON.ComputeShader;
   mesh: BABYLON.Mesh;
 
@@ -220,6 +214,23 @@ class Boid {
     const engine = scene.getEngine();
 
     this.num_particles = num_particles;
+
+    // Create uniform / storage / vertex buffers
+    this.params = params;
+    this.params_buffer = new UniformAdapter(this.params, engine, "params");
+
+    this.particle_buffer = new StorageAdapter(
+      null_particle,
+      num_particles,
+      engine,
+      "a_particle_",
+    );
+    this.particle_param_buffer = new StorageAdapter(
+      null_particle_param,
+      num_particles,
+      engine,
+      "a_particle_param_",
+    );
 
     // Create boid mesh.
     this.mesh = BABYLON.MeshBuilder.CreatePlane("plane", { size: 1 }, scene);
@@ -248,8 +259,8 @@ class Boid {
       "mat",
       scene,
       {
-        vertexSource: boidVertexShader,
-        fragmentSource: boidFragmentShader,
+        vertexSource: boid_vertex_shader,
+        fragmentSource: boid_fragment_shader,
       },
       {
         attributes: [
@@ -262,41 +273,26 @@ class Boid {
       },
     );
     mat.alpha = 0.9;
-    mat.setVector2;
 
     this.mesh.material = mat;
-
-    // Create uniform / storage / vertex buffers
-    this.params = params;
-    this.params_buffer = new UniformAdapter(this.params, engine, "params");
-
-    this.particle_buffer = new StorageAdapter(
-      null_particle,
-      num_particles,
-      engine,
-      "a_particle_",
-    );
-
-    this.init_particles();
-
     _.each(this.particle_buffer.vertex_buffers, (vertex_buffer) => {
       this.mesh.setVerticesBuffer(vertex_buffer, false);
     });
 
-    // Create compute shaders
-    this.cs = new BABYLON.ComputeShader(
-      "compute1",
+    this.init_particles();
+
+    this.cs = create_compute_shader(
       engine,
-      { computeSource: boidComputeShader },
-      {
-        bindingsMapping: {
-          params: { group: 0, binding: 0 },
-          particles: { group: 0, binding: 1 },
-        },
-      },
+      "glowboid_compute",
+      glowboid_compute,
     );
+
     this.cs.setUniformBuffer("params", this.params_buffer.buffer);
     this.cs.setStorageBuffer("particles", this.particle_buffer.storage_buffer);
+    this.cs.setStorageBuffer(
+      "particle_params",
+      this.particle_param_buffer.storage_buffer,
+    );
   }
 
   dispose() {
@@ -344,7 +340,7 @@ class Boid {
   }
 }
 
-const boidVertexShader = `
+const boid_vertex_shader = `
     attribute vec2 a_pos;
     attribute vec2 a_particle_pos;
     attribute vec2 a_particle_vel;
@@ -364,7 +360,7 @@ const boidVertexShader = `
     }
 `;
 
-const boidFragmentShader = `
+const boid_fragment_shader = `
     varying vec4 frag_color;
 
     void main() {
@@ -392,6 +388,14 @@ const null_particle: Particle = {
   pad3: 0.0,
 };
 
+interface ParticleParam extends BufferableStruct {
+  attractor: vec2;
+}
+
+const null_particle_param: ParticleParam = {
+  attractor: new vec2(),
+};
+
 interface Params extends BufferableStruct {
   deltaT: number;
   cohesion_dist: number;
@@ -400,102 +404,7 @@ interface Params extends BufferableStruct {
   cohesion_scale: number;
   separation_scale: number;
   alignment_scale: number;
+
+  attract_dist: number;
+  attract_scale: number;
 }
-
-const boidComputeShader = `
-struct Particle {
-  pos : vec2<f32>,
-  vel : vec2<f32>,
-  color : vec4<f32>,
-  scale: f32,
-  pad1: f32,
-  pad2: f32,
-  pad3: f32,
-};
-
-struct Params {
-  deltaT : f32,
-  cohesion_dist : f32,
-  separation_dist : f32,
-  alignment_dist : f32,
-  cohesion_scale : f32,
-  separation_scale : f32,
-  alignment_scale : f32,
-};
-
-@binding(0) @group(0) var<uniform> params : Params;
-@binding(1) @group(0) var<storage, read_write> particles : array<Particle>;
-
-// https://github.com/austinEng/Project6-Vulkan-Flocking/blob/master/data/shaders/computeparticles/particle.comp
-@compute @workgroup_size(64)
-fn main(@builtin(global_invocation_id) GlobalInvocationID : vec3<u32>) {
-  var index : u32 = GlobalInvocationID.x;
-  var num_particles : u32 = arrayLength(&particles);
-
-  if (index >= num_particles) {
-      return;
-  }
-
-  var vPos : vec2<f32> = particles[index].pos;
-  var vVel : vec2<f32> = particles[index].vel;
-  var cMass : vec2<f32> = vec2<f32>(0.0, 0.0);
-  var cVel : vec2<f32> = vec2<f32>(0.0, 0.0);
-  var colVel : vec2<f32> = vec2<f32>(0.0, 0.0);
-  var cMassCount : u32 = 0u;
-  var cVelCount : u32 = 0u;
-  var pos : vec2<f32>;
-  var vel : vec2<f32>;
-
-  for (var i : u32 = 0u; i < num_particles; i = i + 1u) {
-    if (i == index) {
-      continue;
-    }
-
-    pos = particles[i].pos.xy;
-    vel = particles[i].vel.xy;
-    if (distance(pos, vPos) < params.cohesion_dist) {
-      cMass = cMass + pos;
-      cMassCount = cMassCount + 1u;
-    }
-    if (distance(pos, vPos) < params.separation_dist) {
-      colVel = colVel - (pos - vPos);
-    }
-    if (distance(pos, vPos) < params.alignment_dist) {
-      cVel = cVel + vel;
-      cVelCount = cVelCount + 1u;
-    }
-  }
-  if (cMassCount > 0u) {
-    var temp : f32 = f32(cMassCount);
-    cMass = (cMass / vec2<f32>(temp, temp)) - vPos;
-  }
-  if (cVelCount > 0u) {
-    var temp : f32 = f32(cVelCount);
-    cVel = cVel / vec2<f32>(temp, temp);
-  }
-  vVel = vVel + (cMass * params.cohesion_scale) + (colVel * params.separation_scale) +
-      (cVel * params.alignment_scale);
-
-  // clamp velocity for a more pleasing simulation
-  vVel = normalize(vVel) * clamp(length(vVel), 0.0, 0.1);
-  // kinematic update
-  vPos = vPos + (vVel * params.deltaT);
-  // Wrap around boundary
-  if (vPos.x < -1.0) {
-    vPos.x = 1.0;
-  }
-  if (vPos.x > 1.0) {
-    vPos.x = -1.0;
-  }
-  if (vPos.y < -1.0) {
-    vPos.y = 1.0;
-  }
-  if (vPos.y > 1.0) {
-    vPos.y = -1.0;
-  }
-
-  // Write back
-  particles[index].pos = vPos;
-  particles[index].vel = vVel;
-}
-`;
