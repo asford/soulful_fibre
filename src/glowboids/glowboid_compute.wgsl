@@ -13,7 +13,7 @@ struct ParticleParams {
 };
 
 struct Params {
-  deltaT : f32,
+  delta_t : f32,
   cohesion_dist : f32,
   separation_dist : f32,
   alignment_dist : f32,
@@ -74,7 +74,7 @@ fn boid_force(index: u32, p: Particle, p_param: ParticleParams) -> vec2<f32> {
 fn attract_force(index: u32, p: Particle, p_param: ParticleParams) -> vec2<f32> {
   var pos = p.pos;
   var attractor = p_param.attractor;
-  return (attractor - pos) * params.attract_scale * params.deltaT;
+  return (attractor - pos) * params.attract_scale * 5e-2;
 }
 
 // https://github.com/austinEng/Project6-Vulkan-Flocking/blob/master/data/shaders/computeparticles/particle.comp
@@ -94,13 +94,13 @@ fn main(@builtin(global_invocation_id) GlobalInvocationID : vec3<u32>) {
   var pos = p.pos;
   var vel = p.vel;
 
-  vel = vel + accl;
+  vel = vel + (accl * params.delta_t);
 
   // clamp velocity for a more pleasing simulation
   vel = normalize(vel) * clamp(length(vel), 0.0, 0.1);
 
   // kinematic update
-  pos = pos + (vel * params.deltaT);
+  pos = pos + (vel * params.delta_t);
 
   // Wrap around boundary
   if (pos.x < -1.0) {

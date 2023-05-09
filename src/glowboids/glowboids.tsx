@@ -37,15 +37,15 @@ export function App() {
     glows: { intensity: number; blurKernelSize: number }[];
   } = {
     params: {
-      deltaT: 0.06,
+      delta_t: 0.05,
       cohesion_dist: 0.15,
       separation_dist: 0.025,
       alignment_dist: 0.025,
-      cohesion_scale: 0.02,
-      separation_scale: 0.05,
-      alignment_scale: 0.005,
+      cohesion_scale: 0.4,
+      separation_scale: 1,
+      alignment_scale: 0.1,
       attract_dist: 0.0,
-      attract_scale: 0.005,
+      attract_scale: 0.1,
     },
     boid_opts: { init_scale: 0.01, size_median: 0.2, size_range: 0.05 },
     glows: [
@@ -57,16 +57,16 @@ export function App() {
   };
 
   const params_opts = {
-    deltaT: [-0.25, 0.25, 0.005],
+    delta_t: [-0.05, 0.15],
     cohesion_dist: [0, 0.5, 0.005],
-    separation_dist: [0, 0.2, 0.005],
+    separation_dist: [0, 0.1, 0.005],
     alignment_dist: [0, 0.5, 0.005],
-    cohesion_scale: [-0.1, 0.5, 0.01],
-    separation_scale: [-0.1, 0.5, 0.01],
-    alignment_scale: [-0.01, 0.05, 0.001],
-
     attract_dist: [0, 0.5, 0.005],
-    attract_scale: [-0.01, 0.05, 0.001],
+
+    cohesion_scale: [-1, 1.5, 0.05],
+    separation_scale: [-1, 1.5, 0.05],
+    alignment_scale: [-0.1, 0.5, 0.01],
+    attract_scale: [-0.5, 0.5, 0.001],
   };
 
   const opts = useRef(_.cloneDeep(defaults));
@@ -227,7 +227,7 @@ const null_particle_param: ParticleParam = {
 };
 
 interface Params extends BufferableStruct {
-  deltaT: number;
+  delta_t: number;
   cohesion_dist: number;
   separation_dist: number;
   alignment_dist: number;
