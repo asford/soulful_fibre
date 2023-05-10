@@ -1,5 +1,7 @@
 import { MutableRefObject, PropsWithChildren, useMemo, useRef } from "react";
 import { Canvas, RootState, useFrame, useThree } from "@react-three/fiber";
+import { Bloom, EffectComposer } from "@react-three/postprocessing";
+
 import * as THREE from "three";
 
 import { ArcballControls } from "@react-three/drei";
@@ -35,7 +37,7 @@ const ParticlesFBO = (props: { kpoints: number }) => {
   const count = kpoints * 1024;
   const width = 1024;
   const height = count / width;
-  const point_size = 2.0;
+  const point_size = 1.0;
 
   if (count % width != 0) {
     throw new Error(
@@ -170,22 +172,44 @@ const ParticlesFBO = (props: { kpoints: number }) => {
   );
 };
 
+import { GUI } from "dat.gui";
+
+export function UnrealBloomOverlay() {
+  var params = {
+    luminanceThreshold: 0,
+    luminanceSmoothing: 0.1,
+    intensity: 2,
+    radius: 0.05,
+  };
+  const cparams = useControls(
+    control_params(_.pick(params, ["radius", "intensity"]), { min: 0, max: 4 }),
+  );
+
+  return (
+    <EffectComposer>
+      <Bloom mipmapBlur={true} {...params} {...cparams} />
+    </EffectComposer>
+  );
+}
 export function App(props: {}) {
   return (
     <div style={{ width: "100vw", height: "100vh", background: "black" }}>
       <Canvas camera={{ position: [0.0, 0.0, 1.5] }}>
         <ParticlesFBO kpoints={512} />
-        <mesh
+        {/* <mesh
           onClick={(e) => {
             console.log("click", e.point.toArray());
           }}
         >
           <planeGeometry args={[10, 10]} />
           <meshBasicMaterial opacity={0.01} transparent={true} />
-        </mesh>
+        </mesh> */}
         <ArcballControls />
+        <UnrealBloomOverlay />
       </Canvas>
       <Diagnostics />
     </div>
   );
 }
+
+import { BloomEffect, KernelSize } from "postprocessing";
