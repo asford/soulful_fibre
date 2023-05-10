@@ -13,6 +13,10 @@ import {
 
 import { value_size, struct_meta } from "./compute_util";
 
+import { WgslReflect } from "../wgsl_reflect/wgsl_reflect";
+
+import test_script_wgsl from "./test_script.wgsl";
+
 test("value_size", () => {
   expect(value_size(1.0)).toBe(1);
 
@@ -68,4 +72,11 @@ test("struct_meta", () => {
   ];
 
   expect(struct_meta(proto)).toStrictEqual(meta);
+});
+
+test("reflect", () => {
+  const reflected = new WgslReflect(test_script_wgsl);
+  expect(reflected.storage.length).toBe(2);
+  expect(reflected.uniforms.length).toBe(1);
+  expect(reflected.structs.length).toBe(4);
 });
