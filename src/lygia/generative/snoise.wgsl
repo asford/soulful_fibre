@@ -199,6 +199,12 @@ fn snoise22(x: vec2f) -> vec2f {
     return vec2( s , s1 );
 }
 
+fn snoise23(x: vec3f) -> vec2f {
+    let s  = snoise3(vec3( x ));
+    let s1 = snoise3(vec3( x.y - 19.1, x.x + 47.2, x.z ));
+    return vec2( s , s1 );
+}
+
 fn snoise33(x: vec3f) -> vec3f {
     let s  = snoise3(vec3( x ));
     let s1 = snoise3(vec3( x.y - 19.1 , x.z + 33.4 , x.x + 47.2 ));

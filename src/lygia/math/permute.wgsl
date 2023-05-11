@@ -1,4 +1,5 @@
-#include "mod289.wgsl"
+// TODO broken?
+// #include "mod289.wgsl"
 
 fn permute(x: f32) -> f32 { return mod289_1(((x * 34.0) + 1.0) * x); }
 fn permute2(x: vec2f) -> vec2f { return mod289_2(((x * 34.0) + 1.0) * x); }

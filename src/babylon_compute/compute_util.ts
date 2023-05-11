@@ -232,8 +232,9 @@ export function create_compute_shader(
   source: string,
   opts: Partial<BABYLON.IComputeShaderOptions> = {},
 ) {
+  console.log("create_compute_shader", source);
   const reflect = new WgslReflect(source);
-  console.log("create_compute_shader", source, reflect);
+  console.log("create_compute_shader", reflect);
   opts = _.merge(opts, {
     bindingsMapping: _.fromPairs(
       _.map(_.concat(reflect.uniforms, reflect.storage), (entry) => [
