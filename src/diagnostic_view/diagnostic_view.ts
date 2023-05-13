@@ -152,7 +152,7 @@ interface PoseColors {
 
 function feature_dot(
   p: p5,
-  color: string,
+  color: string | p5.Color,
   center: p5.Vector,
   d: number,
   b: number,
@@ -160,6 +160,7 @@ function feature_dot(
   p.strokeWeight(0)
     .fill(200)
     .circle(center.x, center.y, d)
+    // @ts-expect-error
     .fill(color)
     .circle(center.x, center.y, d - b);
 }
@@ -249,21 +250,38 @@ function draw_view_frame(p: p5, cap_aspect: number, draw_frame: VecScale) {
     .rect(lower.x, lower.y, upper.x, upper.y);
 }
 
-// function draw_capture_image(p: p5, cap: CapResult, draw_frame: VecScale) {
-//   const l_to_f = draw_frame.bind();
+function draw_capture_image(p: p5, cap: CapResult, draw_frame: VecScale) {
+  const l_to_f = draw_frame.bind();
 
-//   const cap_aspect = cap.height / cap.width;
+  const cap_aspect = cap.height / cap.width;
 
-//   const tl = l_to_f(v(-1, 1));
-//   const lr = l_to_f(v(1, -1));
+  const tl = l_to_f(v(1, -1 * cap_aspect));
+  const lr = l_to_f(v(-1, 1 * cap_aspect));
 
-//   if (!cap.result?.image) {
-//     return;
-//   }
+  if (!cap.result?.image) {
+    return;
+  }
 
-//   // Broken, can't draw imagebitmap directly to p5 canvas
-//   p.image(cap.result?.image, tl.x, tl.y, lr.x - tl.x, lr.y - tl.y);
-// }
+  // Copy buffer info p5 image buffer
+  // use negative width to flip x for mirror effect
+  const w = lr.x - tl.x;
+  const h = lr.y - tl.y;
+
+  // flip x scale for selfie image
+  p.drawingContext.scale(-1, 1);
+  p.drawingContext.drawImage(
+    cap.result?.image,
+    // 0,
+    // 0,
+    // cap.result?.image.width,
+    // cap.result?.image.height,
+    -tl.x,
+    tl.y,
+    -(lr.x - tl.x),
+    lr.y - tl.y,
+  )
+  p.drawingContext.scale(-1, 1);
+}
 
 function draw_cap_count(p: p5, cap: CapResult) {
   p.fill(200)
@@ -290,11 +308,12 @@ function draw_chakra_activation(p: p5, coords: ChakraCoords) {
   });
 }
 
-function color_alpha(p: p5, color: string, alpha: number): p5.Color {
+function color_alpha(p: p5, color: p5.Color | string, alpha: number): p5.Color {
   if (alpha <= 1) {
     alpha = alpha * 255;
   }
 
+  // @ts-expect-error
   const result = p.color(color);
   result.setAlpha(alpha);
 
@@ -414,6 +433,7 @@ function draw() {
   p.background(0);
 
   draw_view_frame(p, cap_aspect, draw_frame);
+  draw_capture_image(p, cap, draw_frame);
 
   if (!cap.result?.poseLandmarks) {
     draw_buffer.clear(0, 0, 0, 0);
@@ -447,7 +467,7 @@ function draw() {
     }),
   );
 
-  // feature_dot(p, color_alpha(colors.grey, .25), pose.RIGHT_INDEX, 4, 1);
+  feature_dot(p, color_alpha(p, colors.grey, 0.25), pose.RIGHT_INDEX, 4, 1);
 
   // last_position = position;
   // position = pose.RIGHT_INDEX;
