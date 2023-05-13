@@ -5,18 +5,23 @@ uniform sampler2D back_vel;
 uniform sampler2D back_color;
 uniform sampler2D back_target;
 
-const float delta = .01;
+uniform float delta;
 uniform float f_disp;
 uniform float f_curl;
 uniform float curl_scale;
 uniform float curl_p;
 
+
+// Should perturb curl_p by uv-dependent term for semi-noise?
+
 void step_point() {
     vec2 uv = gl_FragCoord.xy / resolution.xy;
 
     vec4 loc = texture(back_loc, uv);
-    vec4 color = texture(back_color, uv);
+    vec4 hsv_color = texture(p_hsv_color, uv);
     vec4 target = texture(p_target, uv);
+    
+    vec4 color = vec4(hsv2rgb(hsv_color.xyz), 1.0);
 
     vec4 deviation_force = (target - loc);
     // Step down curl_p for less sensitive changes in curl field.

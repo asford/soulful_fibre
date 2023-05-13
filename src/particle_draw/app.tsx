@@ -1,5 +1,22 @@
 // @refresh reset
 
+// TODO cut inference rate for holistic to make room for compute buffer
+// TODO reduce param update rate?
+// TODO random particle re-init from core curl location? Maybe perturb by when under curl scale?
+// TODO ramp curl scale by z for spin-effect on way in? Remap curl vector by displacement term?
+// TODO pivot camera head position? random perturb?
+import {
+    HAND_CONNECTIONS,
+    NormalizedLandmark,
+    NormalizedLandmarkListList,
+    POSE_CONNECTIONS,
+    POSE_LANDMARKS,
+    POSE_LANDMARKS_LEFT,
+    POSE_LANDMARKS_RIGHT,
+    POSE_LANDMARKS_NEUTRAL,
+    FACEMESH_TESSELATION,
+} from "@mediapipe/holistic";
+
 import { PerspectiveCamera } from "@react-three/drei";
 import {
   MutableRefObject,
@@ -16,6 +33,8 @@ import {
   useThree,
 } from "@react-three/fiber";
 import { Bloom, EffectComposer } from "@react-three/postprocessing";
+
+import p5 from "p5";
 
 import * as THREE from "three";
 import * as d3 from "d3";
@@ -37,8 +56,9 @@ import compute_init from "./compute_init.glsl";
 import compute_step from "./compute_step.glsl";
 
 import { Vec4Buffer, Vec3Buffer, Vec2Buffer } from "../vecbuffer";
-import _, { min } from "underscore";
-import { movingAverage } from "@tensorflow/tfjs";
+import _ from "underscore";
+
+import { chakra_meta } from "../chakra_common";
 
 import {
   default_video_constraints,
@@ -94,7 +114,8 @@ const symmetric_matrices = () => {
 };
 const ParticlesFBO = (props: {
   kpoints: number;
-  spawn_callback: MutableRefObject<(point: THREE.Vector3) => void>;
+  // GOD DAMN IT, should move back into something else as state?
+  spawn_callback: MutableRefObject<(point: THREE.Vector3, color: THREE.Color) => void>;
 }) => {
   const gl = useThree((state) => state.gl);
   const { kpoints } = props;
@@ -112,6 +133,7 @@ const ParticlesFBO = (props: {
   const base_params = useControls(
     control_params(
       {
+        delta: 1.0,
         f_disp: 3.0,
         f_curl: 0.2,
         curl_scale: 0.01,
@@ -229,9 +251,9 @@ const ParticlesFBO = (props: {
   const points = useRef<THREE.Points>(null!);
   const material = useRef<THREE.ShaderMaterial>(null!);
 
-  useFrame((state, delta) => {
-    update_uniforms(engine.init_uniforms, base_params);
-    update_uniforms(engine.compute_uniforms, base_params);
+  useFrame((state: RootState, delta: number) => {
+    update_uniforms(engine.init_uniforms, {...base_params, delta:delta * base_params.delta});
+    update_uniforms(engine.compute_uniforms, {...base_params, delta:delta * base_params.delta});
 
     _.each(
       {
@@ -256,8 +278,7 @@ const ParticlesFBO = (props: {
     engine.render();
   });
 
-  const spawn = (spawn_point: THREE.Vector3) => {
-    // console.log("spawn", click.point, click.pointer);
+  const spawn_with_color = (spawn_point: THREE.Vector3, color: THREE.Color) => {
 
     const target = new Vec4Buffer(param.current.p_target.image.data);
     const hsv_color = new Vec4Buffer(param.current.p_hsv_color.image.data);
@@ -273,6 +294,9 @@ const ParticlesFBO = (props: {
     const vec3 = new THREE.Vector3();
     const vec4 = new THREE.Vector4();
 
+    const hue = color.getHSL({h:0, s:0, l:0}).h;
+    console.log("spawn_with_color", spawn_point, hue);
+
     for (let i = offset; i < final; i += mats.length) {
       for (let j = 0; j < mats.length; j++) {
         const mat = mats[j];
@@ -283,7 +307,7 @@ const ParticlesFBO = (props: {
           .applyMatrix3(mat);
 
         target.set(i + j, vec4.set(vec3.x, vec3.y, vec3.z * 0.1, 0.0));
-        hsv_color.set(i + j, vec4.set((vec3.x % 1.0) * 0.85, 1.0, 0.5, 0.0));
+        hsv_color.set(i + j, vec4.set(hue, 1.0, 0.5, 0.0));
       }
     }
     param.current.p_target.needsUpdate = true;
@@ -292,7 +316,7 @@ const ParticlesFBO = (props: {
   };
 
   // Horrid, set spawn_callback
-  props.spawn_callback.current = spawn;
+  props.spawn_callback.current = spawn_with_color;
 
   return (
     <>
@@ -327,6 +351,7 @@ const ParticlesFBO = (props: {
 };
 
 import { GUI } from "dat.gui";
+import { VecIsh } from "../diagnostic_view/vector";
 
 export function UnrealBloomOverlay() {
   var params = {
@@ -353,7 +378,7 @@ export function UnrealBloomOverlay() {
 export function App(props: {}) {
   const cap_video = useRef<HTMLVideoElement>(null!);
   const holistic = useRef<HolisticCapture>(new HolisticCapture());
-  const spawn_callback = useRef<(point: THREE.Vector3) => void>(null!);
+  const spawn_callback = useRef<(point: THREE.Vector3, color: THREE.Color) => void>(null!);
   const clickmesh = useRef<THREE.Mesh>(null!);
 
   const cap = useEffect(() => {
@@ -363,56 +388,94 @@ export function App(props: {}) {
       .then(function (stream) {
         cap_video.current.srcObject = stream;
         holistic.current.attach_video(cap_video.current);
+        holistic.current.on_result(on_result);
       }, console.log);
   }, []);
 
-  const on_right_finger = (current: CapResult): void => {
-    console.log("on_right_finger", current);
-    if (!current.result?.rightHandLandmarks) {
-      return;
+  const on_result = (current: CapResult, prev?: CapResult): void => {
+
+    var right_index: p5.Vector| undefined = undefined;
+    var spawn_point: THREE.Vector3 | undefined = undefined;
+
+    var left_index: p5.Vector| undefined = undefined;
+
+    function v(p: VecIsh) {
+      return new p5.Vector(p.x, p.y);
+    }
+    
+    if (current.result?.rightHandLandmarks) {
+      right_index = v(current.result.rightHandLandmarks[8]);
+      // TODO map into internl frame
+      const right_loc = new THREE.Vector2(right_index.x, right_index.y).subScalar(.5).multiplyScalar(3).multiplyScalar(-1);
+      const raycaster = new THREE.Raycaster();
+      raycaster.setFromCamera(right_loc, camera.current);
+      const intersects = raycaster.intersectObject(clickmesh.current);
+
+      if (intersects[0]) {
+        spawn_point = intersects[0].point;
+      }
     }
 
-    const index = current.result.rightHandLandmarks[8];
-    // Unknown hack on raycast?
-    const index_loc = new THREE.Vector2(index.x, index.y).subScalar(.5).multiplyScalar(3).multiplyScalar(-1);
-
-    const raycaster = new THREE.Raycaster();
-    raycaster.setFromCamera(index_loc, camera.current);
-    const intersects = raycaster.intersectObject(clickmesh.current);
-    if (!intersects[0]) {
-      return;
+    if (spawn_point) {
+      finger_sphere.current.position.set(
+        spawn_point.x,
+        spawn_point.y,
+        spawn_point.z,
+      );
+    } else {
+      // Move sphere out of display
+      finger_sphere.current.position.set(
+        0, 0, 100,
+      );
+    }
+    
+    var pose_coords;
+    if (current.result?.poseLandmarks) {
+      pose_coords = _.mapObject(POSE_LANDMARKS, (idx: number, name: string) => {
+          const landmark = current.result?.poseLandmarks[idx];
+          if (!landmark) {
+              return new p5.Vector(NaN, NaN);
+          }
+          else {
+            return new p5.Vector(landmark.x, landmark.y);
+          }
+      });
+      left_index = pose_coords.LEFT_INDEX;
     }
 
-    const spawn_point = intersects[0].point;
-    spawn_callback.current(spawn_point);
-    finger_sphere.current.position.set(
-      spawn_point.x,
-      spawn_point.y,
-      spawn_point.z,
-    );
+    console.log("on_result", right_index, spawn_point, left_index);
+
+    if (right_index && left_index && pose_coords) {
+      const chak = chakra_meta(pose_coords, right_index, left_index );
+      console.log('chak', chak);
+
+      if (spawn_point && chak.left.activated) {
+        // @ts-expect-error
+        const chak_color = new THREE.Color(chak.left.color);
+        spawn_callback.current(spawn_point, chak_color);
+      }
+    }
   };
-
-  holistic.current.on_result(on_right_finger);
 
   // Raycast from NDC space into
-  const spawn = (ndc_point: THREE.Vector2): void => {
-    ndc_point.multiplyScalar(2.0);
-    console.log(ndc_point);
-    const raycaster = new THREE.Raycaster();
-    raycaster.setFromCamera(ndc_point, camera.current);
-    const intersects = raycaster.intersectObject(clickmesh.current);
+  // const spawn = (ndc_point: THREE.Vector2): void => {
+  //   ndc_point.multiplyScalar(2.0);
+  //   console.log(ndc_point);
+  //   const raycaster = new THREE.Raycaster();
+  //   raycaster.setFromCamera(ndc_point, camera.current);
+  //   const intersects = raycaster.intersectObject(clickmesh.current);
 
-    if (!intersects[0]) {
-      return;
-    }
-    const spawn_point = intersects[0].point;
-    spawn_callback.current(spawn_point);
-    finger_sphere.current.position.set(
-      spawn_point.x,
-      spawn_point.y,
-      spawn_point.z,
-    );
-  };
+  //   if (!intersects[0]) {
+  //     return;
+  //   }
+  //   const spawn_point = intersects[0].point;
+  //   spawn_callback.current(spawn_point);
+  //   finger_sphere.current.position.set(
+  //     spawn_point.x,
+  //     spawn_point.y,
+  //     spawn_point.z,
+  //   );
+  // };
 
   const finger_sphere = useRef<THREE.Mesh>(null!);
   const camera = useRef<THREE.Camera>(null!);
@@ -426,7 +489,7 @@ export function App(props: {}) {
         <ParticlesFBO kpoints={256} spawn_callback={spawn_callback} />
         {/* <ArcballControls /> */}
         <UnrealBloomOverlay />
-        <mesh ref={clickmesh} onClick={(click) => spawn(click.pointer)}>
+        <mesh ref={clickmesh} onClick={(click) => console.log(click.pointer)}>
           <planeGeometry args={[20, 20]} />
           <meshBasicMaterial opacity={0.001} transparent={true} />
         </mesh>

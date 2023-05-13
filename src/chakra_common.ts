@@ -130,7 +130,7 @@ function closest_coord(
     return current;
 }
 
-export function chakra_meta(pose: PoseCoords) {
+export function chakra_meta(pose: PoseCoords, right?: p5.Vector, left?: p5.Vector) {
     const EYE_CENTER = avg_vec([pose.LEFT_EYE, pose.RIGHT_EAR]);
     const MOUTH_CENTER = avg_vec([pose.MOUTH_LEFT, pose.MOUTH_RIGHT]);
     const SHOULDER_CENTER = avg_vec([pose.LEFT_SHOULDER, pose.RIGHT_SHOULDER]);
@@ -172,8 +172,15 @@ export function chakra_meta(pose: PoseCoords) {
         };
     }
 
-    const left_activation = get_activation(pose.LEFT_INDEX);
-    const right_activation = get_activation(pose.RIGHT_INDEX);
+    if (!right) {
+        right= pose.RIGHT_INDEX;
+    }
+    const right_activation = get_activation(right);
+
+    if (!left) {
+        left = pose.LEFT_INDEX;
+    }
+    const left_activation = get_activation(left);
 
     var dual_activation;
     if (left_activation.idx == right_activation.idx) {
@@ -185,7 +192,6 @@ export function chakra_meta(pose: PoseCoords) {
         }
     }
 
-    pose.LEFT_INDEX;
     return {
         meta: meta_coords,
         coords: chakra_coords,
@@ -222,7 +228,6 @@ function feature_dot(
 }
 
 export function cap_to_pose_coords(
-    p: p5,
     cap: CapResult,
     cap_landmark_frame: VecScale,
 ): PoseCoords {
