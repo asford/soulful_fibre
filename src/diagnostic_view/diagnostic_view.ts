@@ -230,12 +230,10 @@ function draw_skeleton(
     });
   }
 
-  // @ts-expect-error
-  const rt = cap.coords?.right_hand_coords[8];
+  const rt = cap.coords?.right_hand_coords?.[8];
   console.log("hand rt", rt?.x, rt?.y, rt?.z);
 
-  // @ts-expect-error
-  const lt = cap.coords?.left_hand_coords[8];
+  const lt = cap.coords?.left_hand_coords?.[8];
   console.log("hand lt", lt?.x, lt?.y, lt?.z);
   function draw_hand(coords: any, color: any) {
     if (coords) {
@@ -422,6 +420,7 @@ var position: Vector;
 var last_position: Vector;
 
 function draw() {
+  console.log("draw");
   if (!hcap) {
     return;
   }
