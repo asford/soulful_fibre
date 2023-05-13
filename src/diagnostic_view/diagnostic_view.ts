@@ -21,6 +21,7 @@ import { VecScale, v, VecIsh } from "./vector";
 
 import { chakra_colors, ChakraCoords, chakra_meta } from "./chakra_common";
 import { not } from "taichi.js/dist/taichi";
+import { applyProps } from "@react-three/fiber/dist/declarations/src/core/utils";
 
 const media_devices = await navigator.mediaDevices.enumerateDevices();
 
@@ -227,6 +228,22 @@ function draw_skeleton(
       feature_dot(p, colors.body, landmark, 2, 1);
     });
   }
+
+  console.log("right", cap.coords?.right_hand_coords);
+  function draw_hand(coords: any, color: any) {
+    if (coords) {
+      const hand_coords = _.map(coords, l_to_f);
+
+      p.stroke(color_alpha(p, p.color(color), 200)).strokeWeight(10);
+      draw_connections(p, hand_coords, HAND_CONNECTIONS);
+
+      _.map(hand_coords, (landmark) => {
+        feature_dot(p, color, landmark, 4, 2);
+      });
+    }
+  }
+  draw_hand(cap.coords?.right_hand_coords, colors.right);
+  draw_hand(cap.coords?.left_hand_coords, colors.left);
 }
 
 // https://github.com/d3/d3-scale-chromatic#schemeSet2
@@ -279,7 +296,7 @@ function draw_capture_image(p: p5, cap: CapResult, draw_frame: VecScale) {
     tl.y,
     -(lr.x - tl.x),
     lr.y - tl.y,
-  )
+  );
   p.drawingContext.scale(-1, 1);
 }
 
