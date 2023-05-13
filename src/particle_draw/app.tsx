@@ -6,15 +6,15 @@
 // TODO ramp curl scale by z for spin-effect on way in? Remap curl vector by displacement term?
 // TODO pivot camera head position? random perturb?
 import {
-    HAND_CONNECTIONS,
-    NormalizedLandmark,
-    NormalizedLandmarkListList,
-    POSE_CONNECTIONS,
-    POSE_LANDMARKS,
-    POSE_LANDMARKS_LEFT,
-    POSE_LANDMARKS_RIGHT,
-    POSE_LANDMARKS_NEUTRAL,
-    FACEMESH_TESSELATION,
+  HAND_CONNECTIONS,
+  NormalizedLandmark,
+  NormalizedLandmarkListList,
+  POSE_CONNECTIONS,
+  POSE_LANDMARKS,
+  POSE_LANDMARKS_LEFT,
+  POSE_LANDMARKS_RIGHT,
+  POSE_LANDMARKS_NEUTRAL,
+  FACEMESH_TESSELATION,
 } from "@mediapipe/holistic";
 
 import { PerspectiveCamera } from "@react-three/drei";
@@ -115,7 +115,10 @@ const symmetric_matrices = () => {
 const ParticlesFBO = (props: {
   kpoints: number;
   // GOD DAMN IT, should move back into something else as state?
-  spawn_callback: MutableRefObject<(point: THREE.Vector3, color: THREE.Color) => void>;
+  callbacks: MutableRefObject<{
+    reinit: () => void;
+    spawn: (point: THREE.Vector3, color: THREE.Color) => void;
+  }>;
 }) => {
   const gl = useThree((state) => state.gl);
   const { kpoints } = props;
@@ -252,8 +255,14 @@ const ParticlesFBO = (props: {
   const material = useRef<THREE.ShaderMaterial>(null!);
 
   useFrame((state: RootState, delta: number) => {
-    update_uniforms(engine.init_uniforms, {...base_params, delta:delta * base_params.delta});
-    update_uniforms(engine.compute_uniforms, {...base_params, delta:delta * base_params.delta});
+    update_uniforms(engine.init_uniforms, {
+      ...base_params,
+      delta: delta * base_params.delta,
+    });
+    update_uniforms(engine.compute_uniforms, {
+      ...base_params,
+      delta: delta * base_params.delta,
+    });
 
     _.each(
       {
@@ -279,7 +288,6 @@ const ParticlesFBO = (props: {
   });
 
   const spawn_with_color = (spawn_point: THREE.Vector3, color: THREE.Color) => {
-
     const target = new Vec4Buffer(param.current.p_target.image.data);
     const hsv_color = new Vec4Buffer(param.current.p_hsv_color.image.data);
 
@@ -294,7 +302,7 @@ const ParticlesFBO = (props: {
     const vec3 = new THREE.Vector3();
     const vec4 = new THREE.Vector4();
 
-    const hue = color.getHSL({h:0, s:0, l:0}).h;
+    const hue = color.getHSL({ h: 0, s: 0, l: 0 }).h;
     console.log("spawn_with_color", spawn_point, hue);
 
     for (let i = offset; i < final; i += mats.length) {
@@ -315,8 +323,11 @@ const ParticlesFBO = (props: {
     cur_idx.current = final;
   };
 
-  // Horrid, set spawn_callback
-  props.spawn_callback.current = spawn_with_color;
+  // Horrid, push callbacks into calling frame
+  props.callbacks.current = {
+    reinit: reinit,
+    spawn: spawn_with_color,
+  };
 
   return (
     <>
@@ -378,8 +389,21 @@ export function UnrealBloomOverlay() {
 export function App(props: {}) {
   const cap_video = useRef<HTMLVideoElement>(null!);
   const holistic = useRef<HolisticCapture>(new HolisticCapture());
-  const spawn_callback = useRef<(point: THREE.Vector3, color: THREE.Color) => void>(null!);
+  const fbo_callbacks = useRef<{
+    reinit: () => void;
+    spawn: (point: THREE.Vector3, color: THREE.Color) => void;
+  }>(null!);
+
   const clickmesh = useRef<THREE.Mesh>(null!);
+
+  const draw_params = useControls(
+    control_params(
+      {
+        draw_canvas_scale: 1.5,
+      },
+      { min: 0.1, max: 5 },
+    ),
+  );
 
   const cap = useEffect(() => {
     console.log("get_user_media");
@@ -393,20 +417,31 @@ export function App(props: {}) {
   }, []);
 
   const on_result = (current: CapResult, prev?: CapResult): void => {
+    console.log("on_result", current, prev);
 
-    var right_index: p5.Vector| undefined = undefined;
+    if (
+      (current.result?.poseLandmarks && !prev?.result?.poseLandmarks) ||
+      (prev?.result?.poseLandmarks && !current.result?.poseLandmarks)
+    ) {
+      console.log("reinit");
+      fbo_callbacks.current.reinit();
+    }
+
+    var right_index: p5.Vector | undefined = undefined;
     var spawn_point: THREE.Vector3 | undefined = undefined;
-
-    var left_index: p5.Vector| undefined = undefined;
+    var left_index: p5.Vector | undefined = undefined;
 
     function v(p: VecIsh) {
       return new p5.Vector(p.x, p.y);
     }
-    
+
     if (current.result?.rightHandLandmarks) {
       right_index = v(current.result.rightHandLandmarks[8]);
       // TODO map into internl frame
-      const right_loc = new THREE.Vector2(right_index.x, right_index.y).subScalar(.5).multiplyScalar(3).multiplyScalar(-1);
+      const right_loc = new THREE.Vector2(right_index.x, right_index.y)
+        .subScalar(0.5)
+        .multiplyScalar(2 * draw_params.draw_canvas_scale)
+        .multiplyScalar(-1);
       const raycaster = new THREE.Raycaster();
       raycaster.setFromCamera(right_loc, camera.current);
       const intersects = raycaster.intersectObject(clickmesh.current);
@@ -424,35 +459,32 @@ export function App(props: {}) {
       );
     } else {
       // Move sphere out of display
-      finger_sphere.current.position.set(
-        0, 0, 100,
-      );
+      finger_sphere.current.position.set(0, 0, 100);
     }
-    
+
     var pose_coords;
     if (current.result?.poseLandmarks) {
       pose_coords = _.mapObject(POSE_LANDMARKS, (idx: number, name: string) => {
-          const landmark = current.result?.poseLandmarks[idx];
-          if (!landmark) {
-              return new p5.Vector(NaN, NaN);
-          }
-          else {
-            return new p5.Vector(landmark.x, landmark.y);
-          }
+        const landmark = current.result?.poseLandmarks[idx];
+        if (!landmark) {
+          return new p5.Vector(NaN, NaN);
+        } else {
+          return new p5.Vector(landmark.x, landmark.y);
+        }
       });
       left_index = pose_coords.LEFT_INDEX;
     }
 
-    console.log("on_result", right_index, spawn_point, left_index);
+    // console.log("on_result", right_index, spawn_point, left_index);
 
     if (right_index && left_index && pose_coords) {
-      const chak = chakra_meta(pose_coords, right_index, left_index );
-      console.log('chak', chak);
+      const chak = chakra_meta(pose_coords, right_index, left_index);
+      console.log("chak", chak);
 
       if (spawn_point && chak.left.activated) {
         // @ts-expect-error
         const chak_color = new THREE.Color(chak.left.color);
-        spawn_callback.current(spawn_point, chak_color);
+        fbo_callbacks.current.spawn(spawn_point, chak_color);
       }
     }
   };
@@ -486,7 +518,7 @@ export function App(props: {}) {
 
       <Canvas>
         <PerspectiveCamera ref={camera} position={[0.0, 0.0, 5]} />
-        <ParticlesFBO kpoints={256} spawn_callback={spawn_callback} />
+        <ParticlesFBO kpoints={256} callbacks={fbo_callbacks} />
         {/* <ArcballControls /> */}
         <UnrealBloomOverlay />
         <mesh ref={clickmesh} onClick={(click) => console.log(click.pointer)}>
