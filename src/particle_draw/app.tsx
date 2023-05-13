@@ -374,7 +374,7 @@ export function App(props: {}) {
 
     const index = current.result.rightHandLandmarks[8];
     // Unknown hack on raycast?
-    const index_loc = new THREE.Vector2(index.x, index.y).subScalar(.5).multiplyScalar(2).multiplyScalar(-1);
+    const index_loc = new THREE.Vector2(index.x, index.y).subScalar(.5).multiplyScalar(3).multiplyScalar(-1);
 
     const raycaster = new THREE.Raycaster();
     raycaster.setFromCamera(index_loc, camera.current);
@@ -435,7 +435,7 @@ export function App(props: {}) {
           <meshStandardMaterial emissive={new THREE.Color(200, 200, 200)} />
         </mesh>
       </Canvas>
-      <Diagnostics />
+      <Diagnostics show={true} />
     </div>
   );
 }
