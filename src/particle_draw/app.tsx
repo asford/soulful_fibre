@@ -142,7 +142,8 @@ const ParticlesFBO = (props: {
         curl_scale: 0.01,
         curl_p: 0.0,
         init_center: new THREE.Vector3(0, 0, 0),
-        init_radius: 3.0,
+        init_radius: 2.0,
+        init_vel_scale: 0.05,
         spawn_count: 100,
         spawn_radius: 0.01,
       },
@@ -218,10 +219,13 @@ const ParticlesFBO = (props: {
     const zz = new THREE.Vector2(0, 0);
 
     for (let i = 0; i < count; i++) {
-      vec2.set(0.5, 0).rotateAround(zz, Math.random() * 100);
-      target.set(i, vec4.set(vec2.x, vec2.y, 8, 0.0));
+      const rotation = Math.random() * 2 * Math.PI;
+      const rad = 4.0;
+      vec2.set(rad, 0).rotateAround(zz, rotation);
+      const hue = Math.abs((vec2.y + rad) / (2*rad));
+      target.set(i, vec4.set(vec2.x, vec2.y, 8, base_params.init_vel_scale));
       // target.set(i, vec4.set(0.0, 0.0, 2.0, 0.0));
-      hsv_color.set(i, vec4.set((i / count) * 0.85, 1.0, 0.5, 0.0));
+      hsv_color.set(i, vec4.set(hue * .85, 1.0, 0.5, 0.0));
 
       // let t = uvs.get(i, uv).multiplyScalar(2.0).subScalar(1.0);
       // target.set(i, vec4.set(t.x, t.y, Math.random() * 0.01, 1.0));
@@ -254,7 +258,13 @@ const ParticlesFBO = (props: {
   const points = useRef<THREE.Points>(null!);
   const material = useRef<THREE.ShaderMaterial>(null!);
 
+  const MAX_DELTA = 1./5.;
   useFrame((state: RootState, delta: number) => {
+    // Clamp step size
+    if (delta > MAX_DELTA ) {
+      delta = MAX_DELTA;
+    }
+
     update_uniforms(engine.init_uniforms, {
       ...base_params,
       delta: delta * base_params.delta,
@@ -314,7 +324,7 @@ const ParticlesFBO = (props: {
           .add(spawn_point)
           .applyMatrix3(mat);
 
-        target.set(i + j, vec4.set(vec3.x, vec3.y, vec3.z * 0.1, 0.0));
+        target.set(i + j, vec4.set(vec3.x, vec3.y, vec3.z * 0.1, 1.0));
         hsv_color.set(i + j, vec4.set(hue, 1.0, 0.5, 0.0));
       }
     }
@@ -368,8 +378,8 @@ export function UnrealBloomOverlay() {
   var params = {
     luminanceThreshold: 0,
     luminanceSmoothing: 0.1,
-    intensity: 2,
-    radius: 0.05,
+    intensity: 4,
+    radius: 0.7,
   };
   const cparams = useControls(
     control_params(_.pick(params, ["radius", "intensity"]), { min: 0, max: 4 }),
@@ -519,7 +529,7 @@ export function App(props: {}) {
       <Canvas>
         <PerspectiveCamera ref={camera} position={[0.0, 0.0, 5]} />
         <ParticlesFBO kpoints={256} callbacks={fbo_callbacks} />
-        {/* <ArcballControls /> */}
+        <ArcballControls />
         <UnrealBloomOverlay />
         <mesh ref={clickmesh} onClick={(click) => console.log(click.pointer)}>
           <planeGeometry args={[20, 20]} />

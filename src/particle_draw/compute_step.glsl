@@ -28,9 +28,10 @@ void step_point() {
     vec4 curl_force = vec4(curl(vec4(loc.xyz, curl_p / 10.0) / curl_scale), 0.0);
 
     vec4 vel = (deviation_force * f_disp + curl_force * f_curl);
+    float local_delta = target.w;
 
     out_vel = vel;
-    out_loc = loc + (vel * delta);
+    out_loc = loc + (vel * delta * local_delta);
     out_color = color;
     out_target = target;
 }
