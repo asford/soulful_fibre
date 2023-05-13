@@ -423,7 +423,7 @@ export function App(props: {}) {
 
       <Canvas>
         <PerspectiveCamera ref={camera} position={[0.0, 0.0, 5]} />
-        <ParticlesFBO kpoints={1024} spawn_callback={spawn_callback} />
+        <ParticlesFBO kpoints={256} spawn_callback={spawn_callback} />
         {/* <ArcballControls /> */}
         <UnrealBloomOverlay />
         <mesh ref={clickmesh} onClick={(click) => spawn(click.pointer)}>
