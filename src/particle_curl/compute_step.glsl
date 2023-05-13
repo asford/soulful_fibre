@@ -16,7 +16,7 @@ void step_point() {
 
     vec4 loc = texture(back_loc, uv);
     vec4 color = texture(back_color, uv);
-    vec4 target = texture(back_target, uv);
+    vec4 target = texture(param_target, uv);
 
     vec4 deviation_force = (target - loc);
     // Step down curl_p for less sensitive changes in curl field.

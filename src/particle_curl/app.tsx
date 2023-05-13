@@ -1,3 +1,5 @@
+// @refresh reset
+
 import { MutableRefObject, PropsWithChildren, useMemo, useRef } from "react";
 import { Canvas, RootState, useFrame, useThree } from "@react-three/fiber";
 import { Bloom, EffectComposer } from "@react-three/postprocessing";
@@ -62,31 +64,48 @@ const ParticlesFBO = (props: { kpoints: number }) => {
     }),
   });
 
+  const uvs = useMemo((): Vec2Buffer => {
+    const uvs = Vec2Buffer.empty(count);
+    const uv = new THREE.Vector2();
+    const num_x = width;
+    const num_y = height;
+    var i = 0;
+    for (var x = 0; x < num_x; x++) {
+      for (var y = 0; y < num_y; y++) {
+        uvs.set(i, uv.set(x / (num_x - 1), y / (num_y - 1)));
+        i++;
+      }
+    }
+
+    return uvs;
+  }, ["count"]);
+
   const engine = useMemo(() => {
     const compute = new MRTComputationRenderer(width, height, gl);
 
-    const init_loc = Vec4Buffer.empty(count);
-    const init_color = Vec4Buffer.empty(count);
-
-    const point = new THREE.Vector3();
-    const color = new THREE.Color();
+    const target = Vec4Buffer.empty(count);
     const vec4 = new THREE.Vector4();
-
+    const uv = new THREE.Vector2();
     for (let i = 0; i < count; i++) {
-      point.randomDirection();
-      init_loc.set(i, vec4.set(point.x, point.y, point.z, 1.0));
+      let t = uvs.get(i, uv).multiplyScalar(2.0).subScalar(1.0);
 
-      color.setHSL(Math.abs(point.x), 1.0, 0.5);
-      init_color.set(i, vec4.set(color.r, color.g, color.b, 1.0));
+      target.set(i, vec4.set(t.x, t.y, Math.random() * 0.01, 1.0));
     }
+
+    const init_target = compute.create_texture(target);
 
     const render_cycle = new MRTRenderCycle(
       compute,
       ["loc", "vel", "color", "target"],
       compute_init,
-      {},
+      as_uniforms({
+        param_target: init_target,
+      }),
       compute_step,
-      as_uniforms(base_params),
+      as_uniforms({
+        param_target: init_target,
+        ...base_params,
+      }),
     );
 
     render_cycle.init();
@@ -100,18 +119,6 @@ const ParticlesFBO = (props: { kpoints: number }) => {
     const positions = Vec3Buffer.empty(count);
 
     // UVs are index into texture buffers
-    const uvs = Vec2Buffer.empty(count);
-    const uv = new THREE.Vector2();
-    const num_x = width;
-    const num_y = height;
-    var i = 0;
-    for (var x = 0; x < num_x; x++) {
-      for (var y = 0; y < num_y; y++) {
-        uvs.set(i, uv.set(x / (num_x - 1), y / (num_y - 1)));
-        i++;
-      }
-    }
-
     const uniforms = {
       point_size: { value: point_size },
       ...engine.texture_uniforms(),
@@ -138,6 +145,17 @@ const ParticlesFBO = (props: { kpoints: number }) => {
         material.current.uniforms[name].value = update.value;
       },
     );
+
+    // here is where parameter updates could be defined
+    // const param_target : THREE.DataTexture = engine.init_uniforms.param_target.value;
+
+    // const tbuf = new Vec4Buffer(param_target.image.data);
+    // let target = tbuf.get(0);
+
+    // for (let index = 0; index < tbuf.size; index++) {
+    //   target = tbuf.set(index, tbuf.get(index, target).multiplyScalar(.99));
+    // }
+    // param_target.needsUpdate = true;
 
     engine.render();
   });
@@ -187,7 +205,12 @@ export function UnrealBloomOverlay() {
 
   return (
     <EffectComposer>
-      <Bloom mipmapBlur={true} {...params} {...cparams} />
+      <Bloom 
+        // @ts-expect-error
+        mipmapBlur={true}
+        {...params}
+        {...cparams}
+       />
     </EffectComposer>
   );
 }
@@ -196,14 +219,10 @@ export function App(props: {}) {
     <div style={{ width: "100vw", height: "100vh", background: "black" }}>
       <Canvas camera={{ position: [0.0, 0.0, 1.5] }}>
         <ParticlesFBO kpoints={512} />
-        {/* <mesh
-          onClick={(e) => {
-            console.log("click", e.point.toArray());
-          }}
-        >
+          <mesh>
           <planeGeometry args={[10, 10]} />
-          <meshBasicMaterial opacity={0.01} transparent={true} />
-        </mesh> */}
+          <meshBasicMaterial opacity={0.0} transparent={true} />
+        </mesh>
         <ArcballControls />
         <UnrealBloomOverlay />
       </Canvas>

@@ -1,4 +1,4 @@
-import { Vector3 } from "three";
+import { Vector2, Vector3, Vector4 } from "three";
 
 function randomGaussian() {
   // https://github.com/scijs/gauss-random/blob/master/sample.js
@@ -50,7 +50,11 @@ export class Vec4Buffer {
     return result;
   }
 
-  get(i: number, into: THREE.Vector4): THREE.Vector4 {
+  get(i: number, into?: THREE.Vector4): THREE.Vector4 {
+    if(!into) {
+      into = new Vector4();
+    }
+
     if (i < 0 || i >= this.size) {
       throw new Error("Invalid index");
     }
@@ -119,7 +123,11 @@ export class Vec3Buffer {
     return result;
   }
 
-  get(i: number, into: THREE.Vector3): THREE.Vector3 {
+  get(i: number, into?: THREE.Vector3): THREE.Vector3 {
+    if(!into) {
+      into = new Vector3();
+    }
+
     if (i < 0 || i >= this.size) {
       throw new Error("Invalid index");
     }
@@ -188,7 +196,11 @@ export class Vec2Buffer {
     return result;
   }
 
-  get(i: number, into: THREE.Vector2): THREE.Vector2 {
+  get(i: number, into?: THREE.Vector2): THREE.Vector2 {
+    if(!into) {
+      into = new Vector2();
+    }
+
     if (i < 0 || i >= this.size) {
       throw new Error("Invalid index");
     }

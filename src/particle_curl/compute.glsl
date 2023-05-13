@@ -6,6 +6,8 @@ layout(location = 1) out vec4 out_vel;
 layout(location = 2) out vec4 out_color;
 layout(location = 3) out vec4 out_target;
 
+uniform sampler2D param_target;
+
 uniform vec2 resolution;
 
 #include "../lygia/math/const.glsl"
@@ -34,8 +36,11 @@ void init_point() {
     vec2 uv = gl_FragCoord.xy / resolution.xy;
 
     vec4 loc = normalize(vec4(random_sphere_point(2.0 * random2(uv) - vec2(1.0)), 0.0));
-    vec4 target = vec4(2.0 * uv - vec2(1.0), random(uv) * 0.1, 0.0);
     vec4 vel = vec4(0.0);
+
+    vec4 target;
+    target = texture(param_target, uv);
+
     vec4 color = vec4(hsv2rgb(vec3(abs(target.x) * .85, 1.0, 0.5)), 1.0);
 
     out_loc = loc;
