@@ -12,7 +12,7 @@ import {
 import { HolisticCapture, CapResult } from "./holistic_capture";
 
 import { Vector } from "p5";
-import { VecScale, v, VecIsh } from "./vector";
+import { VecScale, v, VecIsh } from "./diagnostic_view/vector";
 import _ from "underscore";
 import p5 from "p5";
 

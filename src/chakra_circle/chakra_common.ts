@@ -9,7 +9,7 @@ import {
     POSE_LANDMARKS_NEUTRAL,
     FACEMESH_TESSELATION,
 } from "@mediapipe/holistic";
-import { HolisticCapture, CapResult } from "./holistic_capture";
+import { HolisticCapture, CapResult } from "../holistic_capture";
 
 import { Vector } from "p5";
 import { VecScale, v, VecIsh } from "./vector";

@@ -67,12 +67,20 @@ export const DEFAULT_OPTIONS: Options = {
   minTrackingConfidence: 0.5,
 };
 
+interface CaptureCallback {
+  (result: CapResult, previous?: CapResult): void;
+}
 export class HolisticCapture {
   holistic: Holistic;
   current: CapResult;
+  callback_list: CaptureCallback[];
+
+  on_result(callback: CaptureCallback) {
+    this.callback_list.push(callback);
+  }
 
   store_result(results: Results) {
-    this.current = {
+    const cap_result: CapResult = {
       result: results,
       coords: this.normalize_result(results),
       time: performance.now(),
@@ -80,6 +88,10 @@ export class HolisticCapture {
       height: results.image.height,
       width: results.image.width,
     };
+    const prev = this.current;
+    this.current = cap_result;
+
+    _.each(this.callback_list, (callback) => callback(this.current, prev));
   }
 
   normalize_result(results: Results | undefined): ResultCoords | undefined {
@@ -115,9 +127,11 @@ export class HolisticCapture {
   }
 
   constructor(
-    video_element: HTMLVideoElement,
+    video_element?: HTMLVideoElement,
     options: Options = DEFAULT_OPTIONS,
   ) {
+    this.callback_list = [];
+
     this.current = {
       time: performance.now(),
       count: 0,
@@ -136,6 +150,15 @@ export class HolisticCapture {
     });
     this.holistic.setOptions(options);
 
+    if (video_element) {
+      this.attach_video(video_element);
+    }
+  }
+
+  attach_video(
+    video_element: HTMLVideoElement,
+  ) {
+    console.log("holisic attach_video", video_element);
     const video_callback = async () => {
       await this.holistic.send({ image: video_element });
       video_element.requestVideoFrameCallback(video_callback);

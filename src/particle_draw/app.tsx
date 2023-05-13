@@ -1,6 +1,13 @@
 // @refresh reset
 
-import { MutableRefObject, PropsWithChildren, useMemo, useRef } from "react";
+import { PerspectiveCamera } from "@react-three/drei";
+import {
+  MutableRefObject,
+  PropsWithChildren,
+  useEffect,
+  useMemo,
+  useRef,
+} from "react";
 import {
   Canvas,
   RootState,
@@ -32,6 +39,12 @@ import compute_step from "./compute_step.glsl";
 import { Vec4Buffer, Vec3Buffer, Vec2Buffer } from "../vecbuffer";
 import _, { min } from "underscore";
 import { movingAverage } from "@tensorflow/tfjs";
+
+import {
+  default_video_constraints,
+  HolisticCapture,
+  CapResult,
+} from "../holistic_capture";
 
 const control_params = (params: any, defaults: any) => {
   return _.mapObject(params, (val, name) => {
@@ -79,8 +92,10 @@ const symmetric_matrices = () => {
   }
   return result;
 };
-
-const ParticlesFBO = (props: { kpoints: number }) => {
+const ParticlesFBO = (props: {
+  kpoints: number;
+  spawn_callback: MutableRefObject<(point: THREE.Vector3) => void>;
+}) => {
   const gl = useThree((state) => state.gl);
   const { kpoints } = props;
 
@@ -101,7 +116,7 @@ const ParticlesFBO = (props: { kpoints: number }) => {
         f_curl: 0.2,
         curl_scale: 0.01,
         curl_p: 0.0,
-        init_center: new Vector3(0, 0, 0),
+        init_center: new THREE.Vector3(0, 0, 0),
         init_radius: 3.0,
         spawn_count: 100,
         spawn_radius: 0.01,
@@ -142,8 +157,8 @@ const ParticlesFBO = (props: { kpoints: number }) => {
     const compute = new MRTComputationRenderer(width, height, gl);
 
     param.current = {
-      p_target : compute.create_texture(),
-      p_hsv_color : compute.create_texture(),
+      p_target: compute.create_texture(),
+      p_hsv_color: compute.create_texture(),
     };
 
     const render_cycle = new MRTRenderCycle(
@@ -179,7 +194,7 @@ const ParticlesFBO = (props: { kpoints: number }) => {
 
     for (let i = 0; i < count; i++) {
       vec2.set(0.5, 0).rotateAround(zz, Math.random() * 100);
-      target.set(i, vec4.set(vec2.x, vec2.y, 1.5, 0.0));
+      target.set(i, vec4.set(vec2.x, vec2.y, 8, 0.0));
       // target.set(i, vec4.set(0.0, 0.0, 2.0, 0.0));
       hsv_color.set(i, vec4.set((i / count) * 0.85, 1.0, 0.5, 0.0));
 
@@ -240,7 +255,8 @@ const ParticlesFBO = (props: { kpoints: number }) => {
 
     engine.render();
   });
-  const spawn = (click: ThreeEvent<MouseEvent>) => {
+
+  const spawn = (spawn_point: THREE.Vector3) => {
     // console.log("spawn", click.point, click.pointer);
 
     const target = new Vec4Buffer(param.current.p_target.image.data);
@@ -263,7 +279,7 @@ const ParticlesFBO = (props: { kpoints: number }) => {
         vec3
           .randomDirection()
           .multiplyScalar(Math.random() * 0.01)
-          .add(click.point)
+          .add(spawn_point)
           .applyMatrix3(mat);
 
         target.set(i + j, vec4.set(vec3.x, vec3.y, vec3.z * 0.1, 0.0));
@@ -274,6 +290,9 @@ const ParticlesFBO = (props: { kpoints: number }) => {
     param.current.p_hsv_color.needsUpdate = true;
     cur_idx.current = final;
   };
+
+  // Horrid, set spawn_callback
+  props.spawn_callback.current = spawn;
 
   return (
     <>
@@ -303,10 +322,6 @@ const ParticlesFBO = (props: { kpoints: number }) => {
           uniforms={particle.uniforms}
         />
       </points>
-      <mesh onPointerMove={spawn}>
-        <planeGeometry args={[10, 10]} />
-        <meshBasicMaterial opacity={0.001} transparent={true} />
-      </mesh>
     </>
   );
 };
@@ -336,18 +351,91 @@ export function UnrealBloomOverlay() {
   );
 }
 export function App(props: {}) {
+  const cap_video = useRef<HTMLVideoElement>(null!);
+  const holistic = useRef<HolisticCapture>(new HolisticCapture());
+  const spawn_callback = useRef<(point: THREE.Vector3) => void>(null!);
+  const clickmesh = useRef<THREE.Mesh>(null!);
+
+  const cap = useEffect(() => {
+    console.log("get_user_media");
+    navigator.mediaDevices
+      .getUserMedia(default_video_constraints())
+      .then(function (stream) {
+        cap_video.current.srcObject = stream;
+        holistic.current.attach_video(cap_video.current);
+      }, console.log);
+  }, []);
+
+  const on_right_finger = (current: CapResult): void => {
+    console.log("on_right_finger", current);
+    if (!current.result?.rightHandLandmarks) {
+      return;
+    }
+
+    const index = current.result.rightHandLandmarks[8];
+    // Unknown hack on raycast?
+    const index_loc = new THREE.Vector2(index.x, index.y).subScalar(.5).multiplyScalar(2).multiplyScalar(-1);
+
+    const raycaster = new THREE.Raycaster();
+    raycaster.setFromCamera(index_loc, camera.current);
+    const intersects = raycaster.intersectObject(clickmesh.current);
+    if (!intersects[0]) {
+      return;
+    }
+
+    const spawn_point = intersects[0].point;
+    spawn_callback.current(spawn_point);
+    finger_sphere.current.position.set(
+      spawn_point.x,
+      spawn_point.y,
+      spawn_point.z,
+    );
+  };
+
+  holistic.current.on_result(on_right_finger);
+
+  // Raycast from NDC space into
+  const spawn = (ndc_point: THREE.Vector2): void => {
+    ndc_point.multiplyScalar(2.0);
+    console.log(ndc_point);
+    const raycaster = new THREE.Raycaster();
+    raycaster.setFromCamera(ndc_point, camera.current);
+    const intersects = raycaster.intersectObject(clickmesh.current);
+
+    if (!intersects[0]) {
+      return;
+    }
+    const spawn_point = intersects[0].point;
+    spawn_callback.current(spawn_point);
+    finger_sphere.current.position.set(
+      spawn_point.x,
+      spawn_point.y,
+      spawn_point.z,
+    );
+  };
+
+  const finger_sphere = useRef<THREE.Mesh>(null!);
+  const camera = useRef<THREE.Camera>(null!);
+
   return (
     <div style={{ width: "100vw", height: "100vh", background: "black" }}>
-      <Canvas camera={{ position: [0.0, 0.0, 1.5] }}>
-        <ParticlesFBO kpoints={1024} />
-        <ArcballControls />
+      <video ref={cap_video} hidden={true} autoPlay />
+
+      <Canvas>
+        <PerspectiveCamera ref={camera} position={[0.0, 0.0, 5]} />
+        <ParticlesFBO kpoints={1024} spawn_callback={spawn_callback} />
+        {/* <ArcballControls /> */}
         <UnrealBloomOverlay />
+        <mesh ref={clickmesh} onClick={(click) => spawn(click.pointer)}>
+          <planeGeometry args={[20, 20]} />
+          <meshBasicMaterial opacity={0.001} transparent={true} />
+        </mesh>
+        <mesh ref={finger_sphere}>
+          <sphereGeometry args={[0.01, 24, 24]} />
+          <meshStandardMaterial emissive={new THREE.Color(200, 200, 200)} />
+        </mesh>
       </Canvas>
       <Diagnostics />
     </div>
   );
 }
-
-import { BloomEffect, KernelSize } from "postprocessing";
-import { Vector3 } from "three";
-import { copyTextureToTexturePixelShader } from "@babylonjs/core/Shaders/copyTextureToTexture.fragment";

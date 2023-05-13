@@ -16,10 +16,10 @@ import {
   default_video_constraints,
   HolisticCapture,
   CapResult,
-} from "./holistic_capture";
+} from "../holistic_capture";
 import { VecScale, v, VecIsh } from "./vector";
 
-import { chakra_colors, ChakraCoords, chakra_meta } from "./chakra_common";
+import { chakra_colors, ChakraCoords, chakra_meta } from "../chakra_common";
 import { not } from "taichi.js/dist/taichi";
 import { applyProps } from "@react-three/fiber/dist/declarations/src/core/utils";
 
@@ -143,6 +143,7 @@ function setup() {
   capture.hide();
 
   hcap = new HolisticCapture(capture.elt);
+  hcap.on_result((result) => console.log("on_result", result));
 }
 
 interface PoseColors {

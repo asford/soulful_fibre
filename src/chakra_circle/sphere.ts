@@ -16,7 +16,7 @@ import {
   default_video_constraints,
   HolisticCapture,
   CapResult,
-} from "./holistic_capture";
+} from "../holistic_capture";
 import { VecScale, v, VecIsh } from "./vector";
 import {
   chakra_colors,
@@ -24,7 +24,7 @@ import {
   PoseCoords,
   chakra_meta,
   NUM_CHAK,
-} from "./chakra_common";
+} from "../chakra_common";
 
 const sin = Math.sin;
 const cos = Math.cos;
