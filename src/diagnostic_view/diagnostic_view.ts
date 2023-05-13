@@ -230,7 +230,13 @@ function draw_skeleton(
     });
   }
 
-  console.log("right", cap.coords?.right_hand_coords);
+  // @ts-expect-error
+  const rt = cap.coords?.right_hand_coords[8];
+  console.log("hand rt", rt?.x, rt?.y, rt?.z);
+
+  // @ts-expect-error
+  const lt = cap.coords?.left_hand_coords[8];
+  console.log("hand lt", lt?.x, lt?.y, lt?.z);
   function draw_hand(coords: any, color: any) {
     if (coords) {
       const hand_coords = _.map(coords, l_to_f);
