@@ -558,7 +558,7 @@ export function App(props: {}) {
   const camera = useRef<THREE.Camera>(null!);
 
   return (
-    <div style={{ width: "100vw", height: "100vh", background: "black" }}>
+    <div style={{ width: "100vw", height: "100vh", background: "black", overflow: "hidden" }}>
       <video ref={cap_video} hidden={true} autoPlay />
 
       <Canvas>
@@ -575,7 +575,7 @@ export function App(props: {}) {
           <meshStandardMaterial emissive={new THREE.Color(200, 200, 200)} />
         </mesh>
       </Canvas>
-      <Diagnostics show={true} />
+      <Diagnostics show={false} stats={false} leva={true} />
     </div>
   );
 }
