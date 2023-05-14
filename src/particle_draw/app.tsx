@@ -117,6 +117,7 @@ const ParticlesFBO = (props: {
   // GOD DAMN IT, should move back into something else as state?
   callbacks: MutableRefObject<{
     reinit: () => void;
+    fade_out: () => void;
     spawn: (point: THREE.Vector3, color: THREE.Color) => void;
   }>;
 }) => {
@@ -154,6 +155,9 @@ const ParticlesFBO = (props: {
   useControls({
     reinit: button(() => {
       reinit();
+    }),
+    fade_out: button(() => {
+      fade_out();
     }),
   });
 
@@ -235,6 +239,29 @@ const ParticlesFBO = (props: {
     param.current.p_hsv_color.needsUpdate = true;
 
     engine.init();
+  };
+
+  const fade_out = () => {
+    cur_idx.current = 0;
+
+    const target = new Vec4Buffer(param.current.p_target.image.data);
+    const hsv_color = new Vec4Buffer(param.current.p_hsv_color.image.data);
+    const vec4 = new THREE.Vector4();
+    const vec3 = new THREE.Vector3();
+    const vec2 = new THREE.Vector2();
+    const uv = new THREE.Vector2();
+    const zz = new THREE.Vector2(0, 0);
+
+    for (let i = 0; i < count; i++) {
+      target.get(i, vec4);
+      vec4.x = vec4.x + (Math.random() - .5 ) * .5;
+      vec4.y = vec4.y + (Math.random() - .5 ) * .5;
+      vec4.z = 20;
+      vec4.w = .05;
+      target.set(i, vec4);
+    }
+
+    param.current.p_target.needsUpdate = true;
   };
 
   // https://github.com/mrdoob/three.js/blob/dev/examples/webgl_gpgpu_protoplanet.html
@@ -336,6 +363,7 @@ const ParticlesFBO = (props: {
   // Horrid, push callbacks into calling frame
   props.callbacks.current = {
     reinit: reinit,
+    fade_out: fade_out,
     spawn: spawn_with_color,
   };
 
@@ -401,6 +429,7 @@ export function App(props: {}) {
   const holistic = useRef<HolisticCapture>(new HolisticCapture());
   const fbo_callbacks = useRef<{
     reinit: () => void;
+    fade_out: () => void;
     spawn: (point: THREE.Vector3, color: THREE.Color) => void;
   }>(null!);
 
@@ -430,11 +459,17 @@ export function App(props: {}) {
     console.log("on_result", current, prev);
 
     if (
-      (current.result?.poseLandmarks && !prev?.result?.poseLandmarks) ||
-      (prev?.result?.poseLandmarks && !current.result?.poseLandmarks)
+      (current.result?.poseLandmarks && !prev?.result?.poseLandmarks)
     ) {
       console.log("reinit");
       fbo_callbacks.current.reinit();
+    }
+
+    if (
+      (prev?.result?.poseLandmarks && !current.result?.poseLandmarks)
+    ) {
+      console.log("fade_out");
+      fbo_callbacks.current.fade_out();
     }
 
     var right_index: p5.Vector | undefined = undefined;
