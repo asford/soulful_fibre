@@ -140,8 +140,11 @@ export class HolisticCapture {
     };
 
     this.holistic = new Holistic({
-      locateFile: (file) => {
-        return `https://cdn.jsdelivr.net/npm/@mediapipe/holistic/${file}`;
+      locateFile: (file:string) => {
+        var urlpath = `${import.meta.env.BASE_URL}/mediapipe_assets/holistic/${file}`
+        console.log("locateFile", file, urlpath);
+        return urlpath;
+        // return `https://cdn.jsdelivr.net/npm/@mediapipe/holistic/${file}`;
       },
     });
 
